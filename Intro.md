@@ -1,3 +1,3 @@
-I Happy Paaajii<br>
-I Emotional Paaji<br> 
-Balle Balle Paaji<br>
+ Happy Paaajii aka Gaurangparmar<br>
+ Emotional Paaji aka PiyushArun<br> 
+Balle Balle Paaji aka KrishPatel<br>
