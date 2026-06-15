@@ -1,3 +1,3 @@
-I Happy Paaajii\n
-I Emotional Paaji\n
-Balle Balle Paaji\n
+I Happy Paaajii\ 
+I Emotional Paaji\ 
+Balle Balle Paaji\ 
