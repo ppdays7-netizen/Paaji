@@ -1,0 +1,89 @@
+<%- include('partials/head') %>
+<%- include('partials/nav') %>
+
+<main class="max-w-5xl mx-auto px-4 py-8">
+  <a href="<%= isSelf ? '/dashboard' : '/map' %>" class="font-mono text-xs text-emerald-400/60 hover:text-mil-green inline-flex items-center gap-1 mb-5"><i data-lucide="arrow-left" class="w-3 h-3"></i> BACK</a>
+
+  <div class="glass hud-frame p-8 reveal" style="border-color:<%= (profile.accent||'#3fff9f') %>55">
+    <!-- header -->
+    <div class="flex flex-col md:flex-row items-start gap-6">
+      <!-- photo placeholder + badge -->
+      <div class="shrink-0 text-center">
+        <div class="w-28 h-28 rounded-2xl flex items-center justify-center font-head text-4xl mx-auto"
+             style="background:<%= (profile.accent||'#3fff9f') %>15; border:1px solid <%= (profile.accent||'#3fff9f') %>66; color:<%= (profile.accent||'#3fff9f') %>">
+          <%= profile.username.charAt(0) %>
+        </div>
+        <div class="font-mono text-[10px] text-emerald-400/50 mt-2">PHOTO // REDACTED</div>
+        <div class="text-mil-amber text-lg mt-1"><%= profile.badge || '★' %></div>
+      </div>
+
+      <div class="flex-1">
+        <div class="flex flex-wrap items-center gap-3">
+          <h1 class="font-head font-black text-3xl text-emerald-100 tracking-wide"><%= profile.username %></h1>
+          <span class="chip" style="color:<%= profile.accent||'#3fff9f' %>"><%= profile.rank %></span>
+        </div>
+        <div class="font-mono text-sm mt-1" style="color:<%= profile.accent||'#3fff9f' %>">CALLSIGN: <%= profile.callsign || '—' %></div>
+        <div class="font-mono text-xs text-emerald-400/60 mt-1">MILITARY ID: DHN-<%= profile.username.toUpperCase().slice(0,3) %>-<%= (profile.years*7+100) %></div>
+
+        <div class="flex flex-wrap gap-2 mt-4">
+          <span class="chip-danger chip"><i data-lucide="shield" class="w-3 h-3"></i> <%= profile.clearance %></span>
+          <span class="chip"><i data-lucide="activity" class="w-3 h-3"></i> <%= profile.status %></span>
+        </div>
+      </div>
+
+      <!-- XP block -->
+      <div class="w-full md:w-56 glass p-4">
+        <div class="font-mono text-[10px] text-emerald-400/60">CURRENT XP · LVL <%= level %></div>
+        <div class="font-head text-3xl text-mil-green glow-text"><%= xp %></div>
+        <div class="xp-track mt-2"><div class="xp-fill" data-pct="<%= xp % 100 %>"></div></div>
+        <div class="font-mono text-[10px] text-emerald-400/50 mt-1"><%= xp % 100 %>/100 to next level</div>
+      </div>
+    </div>
+
+    <!-- detail grid -->
+    <div class="grid md:grid-cols-2 gap-6 mt-8">
+      <div class="glass p-5">
+        <h3 class="font-head text-mil-green text-sm tracking-widest mb-3 flex items-center gap-2"><i data-lucide="map-pin" class="w-4 h-4"></i> SERVICE RECORD</h3>
+        <dl class="space-y-2 font-mono text-sm">
+          <div class="flex justify-between"><dt class="text-emerald-400/60">POSTING</dt><dd class="text-emerald-100"><%= profile.posting %></dd></div>
+          <div class="flex justify-between"><dt class="text-emerald-400/60">YEARS OF SERVICE</dt><dd class="text-emerald-100"><%= profile.years %></dd></div>
+          <div class="flex justify-between"><dt class="text-emerald-400/60">CURRENT MISSION</dt><dd class="text-mil-amber text-right max-w-[60%]"><%= profile.currentMission %></dd></div>
+        </dl>
+      </div>
+
+      <div class="glass p-5">
+        <h3 class="font-head text-mil-green text-sm tracking-widest mb-3 flex items-center gap-2"><i data-lucide="git-branch" class="w-4 h-4"></i> CONTRIBUTION · OP DHURANDAR</h3>
+        <div class="flex flex-wrap gap-2">
+          <% (profile.contribution||[]).forEach(function(c){ %><span class="chip"><%= c %></span><% }) %>
+        </div>
+      </div>
+    </div>
+
+    <!-- medals / achievements -->
+    <div class="glass p-5 mt-6">
+      <h3 class="font-head text-mil-amber text-sm tracking-widest mb-3 flex items-center gap-2"><i data-lucide="medal" class="w-4 h-4"></i> ACHIEVEMENTS &amp; MEDALS</h3>
+      <div class="flex flex-wrap gap-2">
+        <% (profile.achievements||[]).forEach(function(a){ %><span class="medal"><i data-lucide="award" class="w-3 h-3"></i> <%= a %></span><% }) %>
+      </div>
+    </div>
+
+    <!-- completed missions -->
+    <div class="glass p-5 mt-6">
+      <h3 class="font-head text-mil-green text-sm tracking-widest mb-3 flex items-center gap-2"><i data-lucide="check-check" class="w-4 h-4"></i> COMPLETED MISSIONS (<%= completedMissions.length %>)</h3>
+      <% if (completedMissions.length === 0) { %>
+        <p class="font-mono text-sm text-emerald-400/50">No missions logged yet.</p>
+      <% } else { %>
+        <div class="grid sm:grid-cols-2 gap-2">
+          <% completedMissions.forEach(function(m){ %>
+            <div class="flex items-center justify-between glass p-3">
+              <span class="text-sm text-emerald-100/80"><%= m.title %></span>
+              <span class="font-mono text-mil-green text-xs">+<%= m.xp %></span>
+            </div>
+          <% }) %>
+        </div>
+      <% } %>
+    </div>
+  </div>
+</main>
+
+<%- include('partials/footer') %>

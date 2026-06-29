@@ -1,0 +1,14 @@
+<%- include('partials/head') %>
+<%- include('partials/nav') %>
+
+<main class="max-w-xl mx-auto px-4 py-24 text-center">
+  <div class="glass hud-frame p-10 reveal">
+    <span class="emblem mx-auto mb-6 text-2xl"><i data-lucide="satellite-dish"></i></span>
+    <h1 class="font-head font-black text-6xl text-mil-green glow-text">404</h1>
+    <p class="font-mono text-sm text-emerald-100/70 mt-4" data-decrypt="SECTOR NOT FOUND">SECTOR NOT FOUND</p>
+    <p class="font-mono text-xs text-emerald-400/50 mt-2">The coordinates you requested are off the grid.</p>
+    <a href="<%= currentUser ? '/dashboard' : '/' %>" class="btn-ghost mt-8 inline-flex"><i data-lucide="home" class="w-4 h-4"></i> RETURN TO BASE</a>
+  </div>
+</main>
+
+<%- include('partials/footer') %>

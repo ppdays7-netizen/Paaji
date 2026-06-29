@@ -1,0 +1,82 @@
+{
+  "Piyush": {
+    "callsign": "OVERLORD",
+    "rank": "Brigadier",
+    "posting": "Northern Command",
+    "years": 18,
+    "clearance": "ALPHA — TOP SECRET",
+    "status": "ACTIVE — IN COMMAND",
+    "achievements": [
+      "Operation Trinetra Gallantry Medal",
+      "Cyber Warfare Division — Lead",
+      "Strategic Command Citation"
+    ],
+    "contribution": [
+      "Mission Planning",
+      "Resource Allocation",
+      "Final Command Authority"
+    ],
+    "currentMission": "Operation DHURANDAR — Overall Command",
+    "sector": { "x": 42, "y": 17 },
+    "badge": "★★★",
+    "accent": "#ffd23f"
+  },
+  "Gaurang": {
+    "callsign": "IRONHAWK",
+    "rank": "Major",
+    "posting": "Eastern Sector",
+    "years": 12,
+    "clearance": "BRAVO — SECRET",
+    "status": "ACTIVE — DEPLOYED",
+    "achievements": [
+      "Mountain Warfare Specialist",
+      "Recon Team Leader"
+    ],
+    "contribution": [
+      "Logistics",
+      "Ground Operations"
+    ],
+    "currentMission": "Operation DHURANDAR — Eastern Logistics Corridor",
+    "sector": { "x": 79, "y": 41 },
+    "badge": "★★",
+    "accent": "#3fb950"
+  },
+  "Durvankur": {
+    "callsign": "NIGHTOWL",
+    "rank": "Colonel",
+    "posting": "Western Intelligence",
+    "years": 14,
+    "clearance": "ALPHA — TOP SECRET",
+    "status": "ACTIVE — FIELD INTEL",
+    "achievements": [
+      "Signals Intelligence Expert",
+      "Advanced Tactical Planning"
+    ],
+    "contribution": [
+      "Strategic Analysis"
+    ],
+    "currentMission": "Operation DHURANDAR — SIGINT & Counter-Recon",
+    "sector": { "x": 21, "y": 47 },
+    "badge": "★★★",
+    "accent": "#58a6ff"
+  },
+  "Vedant": {
+    "callsign": "VIPER",
+    "rank": "Lieutenant",
+    "posting": "Training Command",
+    "years": 6,
+    "clearance": "CHARLIE — CONFIDENTIAL",
+    "status": "ACTIVE — TRAINING",
+    "achievements": [
+      "Drone Operations Certified",
+      "Field Support Specialist"
+    ],
+    "contribution": [
+      "Field Execution"
+    ],
+    "currentMission": "Operation DHURANDAR — Drone Recon & Field Support",
+    "sector": { "x": 45, "y": 69 },
+    "badge": "★",
+    "accent": "#ff7b54"
+  }
+}

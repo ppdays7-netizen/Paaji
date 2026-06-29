@@ -1,0 +1,13 @@
+<%- include('partials/head') %>
+<%- include('partials/nav') %>
+
+<main class="max-w-xl mx-auto px-4 py-24 text-center">
+  <div class="glass hud-frame p-10 reveal" style="border-color: rgba(255,210,63,.4)">
+    <span class="emblem chip-amber mx-auto mb-6 text-2xl" style="color:#ffd23f;border-color:#ffd23f66"><i data-lucide="triangle-alert"></i></span>
+    <h1 class="font-head font-black text-4xl amber-text" data-decrypt="SYSTEM FAULT">SYSTEM FAULT</h1>
+    <p class="font-mono text-sm text-emerald-100/70 mt-4"><%= typeof message !== 'undefined' ? message : 'An unexpected fault occurred.' %></p>
+    <a href="/dashboard" class="btn-ghost mt-8 inline-flex"><i data-lucide="refresh-cw" class="w-4 h-4"></i> RETRY</a>
+  </div>
+</main>
+
+<%- include('partials/footer') %>

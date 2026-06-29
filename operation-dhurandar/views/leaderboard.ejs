@@ -1,0 +1,85 @@
+<%- include('partials/head') %>
+<%- include('partials/nav') %>
+
+<main class="max-w-5xl mx-auto px-4 py-8">
+  <div class="flex items-center justify-between mb-6">
+    <div>
+      <h1 class="font-head font-black tracking-widest text-2xl text-mil-green glow-text">UNIT LEADERBOARD</h1>
+      <p class="font-mono text-xs text-emerald-400/60" data-decrypt="OPERATIONAL SCORING — LIVE">OPERATIONAL SCORING — LIVE</p>
+    </div>
+    <span class="chip"><span class="status-dot"></span> AUTO-REFRESH</span>
+  </div>
+
+  <!-- podium -->
+  <div class="grid grid-cols-3 gap-4 mb-8 items-end">
+    <% var podium = [leaderboard[1], leaderboard[0], leaderboard[2]]; var heights=['h-28','h-40','h-20']; var medals=['medal-silver','medal-gold','medal-bronze']; var icons=['🥈','🥇','🥉'];
+       podium.forEach(function(p, idx){ if(!p) return; %>
+      <div class="reveal text-center">
+        <div class="glass hud-frame p-3 mb-2">
+          <div class="text-3xl <%= medals[idx] %>"><%= icons[idx] %></div>
+          <div class="font-head text-emerald-100 mt-1 truncate"><%= p.username %></div>
+          <div class="font-mono text-[10px] text-emerald-400/60 uppercase"><%= p.militaryRank %></div>
+          <div class="font-mono text-mil-green mt-1"><%= p.points %> XP</div>
+        </div>
+        <div class="glass <%= heights[idx] %> rounded-t-lg flex items-end justify-center pb-2 font-head text-2xl <%= medals[idx] %>">
+          #<%= p.position %>
+        </div>
+      </div>
+    <% }) %>
+  </div>
+
+  <!-- full table -->
+  <div class="glass p-3 reveal">
+    <div id="full-leaderboard">
+      <% leaderboard.forEach(function(r, i){ %>
+        <div class="lb-row flex items-center justify-between px-4 py-4 rounded <%= i<3 ? 'rank-'+(i+1) : '' %>">
+          <div class="flex items-center gap-4">
+            <span class="font-head text-xl w-10 text-center <%= i===0?'medal-gold':i===1?'medal-silver':i===2?'medal-bronze':'text-emerald-400/50' %>"><%= i<3 ? ['🥇','🥈','🥉'][i] : '#'+(i+1) %></span>
+            <div>
+              <div class="font-semibold text-emerald-100 text-lg"><%= r.username %></div>
+              <div class="font-mono text-[11px] text-emerald-400/60 uppercase"><%= r.militaryRank %></div>
+            </div>
+          </div>
+          <div class="flex items-center gap-6">
+            <div class="text-right">
+              <div class="font-mono text-mil-green text-xl"><%= r.points %> <span class="text-xs text-emerald-400/50">XP</span></div>
+              <div class="font-mono text-[10px] text-emerald-400/50">LEVEL <%= r.level %></div>
+            </div>
+            <div class="hidden sm:block w-32">
+              <div class="xp-track"><div class="xp-fill" data-pct="<%= r.points % 100 %>"></div></div>
+            </div>
+          </div>
+        </div>
+      <% }) %>
+    </div>
+  </div>
+  <p class="font-mono text-[11px] text-emerald-400/40 mt-4 text-center">Scores update instantly from <span class="text-mil-green">data/points.json</span> as missions are cleared.</p>
+</main>
+
+<script>
+  // light polling so the board reflects new XP without a manual reload
+  setInterval(async () => {
+    try {
+      const res = await fetch('/api/leaderboard');
+      const data = await res.json();
+      if (!data.ok) return;
+      const box = document.getElementById('full-leaderboard');
+      const medals = ['medal-gold','medal-silver','medal-bronze']; const ic=['🥇','🥈','🥉'];
+      box.innerHTML = data.leaderboard.map((r,i) => `
+        <div class="lb-row flex items-center justify-between px-4 py-4 rounded ${i<3?'rank-'+(i+1):''}">
+          <div class="flex items-center gap-4">
+            <span class="font-head text-xl w-10 text-center ${i<3?medals[i]:'text-emerald-400/50'}">${i<3?ic[i]:'#'+(i+1)}</span>
+            <div><div class="font-semibold text-emerald-100 text-lg">${r.username}</div>
+            <div class="font-mono text-[11px] text-emerald-400/60 uppercase">${r.militaryRank}</div></div>
+          </div>
+          <div class="flex items-center gap-6">
+            <div class="text-right"><div class="font-mono text-mil-green text-xl">${r.points} <span class="text-xs text-emerald-400/50">XP</span></div>
+            <div class="font-mono text-[10px] text-emerald-400/50">LEVEL ${r.level}</div></div>
+            <div class="hidden sm:block w-32"><div class="xp-track"><div class="xp-fill" style="width:${Math.min(100,r.points%100)}%"></div></div></div>
+          </div>
+        </div>`).join('');
+    } catch (e) {}
+  }, 8000);
+</script>
+
+<%- include('partials/footer') %>

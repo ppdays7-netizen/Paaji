@@ -1,0 +1,149 @@
+<%- include('partials/head') %>
+<%- include('partials/nav') %>
+
+<main class="max-w-7xl mx-auto px-4 py-8">
+  <div class="flex flex-wrap items-center justify-between gap-3 mb-6">
+    <div>
+      <h1 class="font-head font-black tracking-widest text-2xl text-mil-amber amber-text">COMMAND CENTRE</h1>
+      <p class="font-mono text-xs text-emerald-400/60" data-decrypt="BRIGADIER AUTHORITY — FULL CONTROL">BRIGADIER AUTHORITY — FULL CONTROL</p>
+    </div>
+    <span class="chip chip-amber"><i data-lucide="star" class="w-3 h-3"></i> CLEARANCE: BRIGADIER</span>
+  </div>
+
+  <div class="grid lg:grid-cols-2 gap-6">
+
+    <!-- ====================== ADD OFFICER ====================== -->
+    <section class="glass hud-frame p-6 reveal">
+      <h2 class="font-head tracking-widest text-mil-green mb-4 flex items-center gap-2"><i data-lucide="user-plus"></i> ADD OFFICER</h2>
+      <form action="/admin/members/add" method="POST" class="space-y-3">
+        <div><label class="label">Name</label><input class="field mt-1" name="username" required placeholder="Officer name" /></div>
+        <div><label class="label">Password</label><input class="field mt-1" name="password" required placeholder="Passphrase" /></div>
+        <div>
+          <label class="label">Rank</label>
+          <select class="field mt-1" name="rank">
+            <option>Lieutenant</option><option>Captain</option><option>Major</option>
+            <option>Colonel</option><option>Brigadier</option>
+          </select>
+        </div>
+        <button class="btn-primary w-full justify-center text-sm"><i data-lucide="plus" class="w-4 h-4"></i> COMMISSION OFFICER</button>
+      </form>
+      <p class="font-mono text-[11px] text-emerald-400/40 mt-3">Appends to <span class="text-mil-green">auth.txt</span> &amp; reloads users — no restart required.</p>
+    </section>
+
+    <!-- ====================== ADD MISSION ====================== -->
+    <section class="glass hud-frame p-6 reveal">
+      <h2 class="font-head tracking-widest text-mil-green mb-4 flex items-center gap-2"><i data-lucide="target"></i> CREATE MISSION</h2>
+      <form action="/admin/missions/add" method="POST" class="space-y-3">
+        <div><label class="label">Title</label><input class="field mt-1" name="title" required placeholder="e.g. Patrol Night Watch" /></div>
+        <div class="grid grid-cols-2 gap-3">
+          <div><label class="label">XP Reward</label><input class="field mt-1" type="number" name="xp" min="0" required placeholder="25" /></div>
+          <div><label class="label">Category</label><input class="field mt-1" name="category" placeholder="Combat Ops" /></div>
+        </div>
+        <button class="btn-primary w-full justify-center text-sm"><i data-lucide="plus" class="w-4 h-4"></i> DEPLOY MISSION</button>
+      </form>
+    </section>
+
+    <!-- ====================== MANAGE MEMBERS ====================== -->
+    <section class="glass hud-frame p-6 reveal lg:col-span-2">
+      <h2 class="font-head tracking-widest text-mil-green mb-4 flex items-center gap-2"><i data-lucide="users"></i> MANAGE OFFICERS</h2>
+      <div class="overflow-x-auto">
+        <table class="mil-table w-full">
+          <thead><tr><th>Officer</th><th>Rank</th><th>Posting</th><th>Edit</th><th>Action</th></tr></thead>
+          <tbody>
+            <% users.forEach(function(u){ var m = members[u.username] || {}; %>
+            <tr>
+              <td class="font-semibold text-emerald-100"><%= u.username %></td>
+              <td class="font-mono text-emerald-300/80"><%= m.rank || u.rank %></td>
+              <td class="font-mono text-emerald-300/60 text-sm"><%= m.posting || '—' %></td>
+              <td>
+                <form action="/admin/members/edit" method="POST" class="flex flex-wrap gap-1 items-center">
+                  <input type="hidden" name="username" value="<%= u.username %>" />
+                  <select name="rank" class="field !py-1 !px-2 text-xs w-24">
+                    <% ['Lieutenant','Captain','Major','Colonel','Brigadier'].forEach(function(r){ %>
+                      <option <%= (m.rank||u.rank)===r?'selected':'' %>><%= r %></option>
+                    <% }) %>
+                  </select>
+                  <input name="posting" class="field !py-1 !px-2 text-xs w-28" value="<%= m.posting || '' %>" placeholder="posting" />
+                  <input name="years" type="number" class="field !py-1 !px-2 text-xs w-16" value="<%= m.years || '' %>" placeholder="yrs" />
+                  <input name="password" class="field !py-1 !px-2 text-xs w-24" placeholder="new pass" />
+                  <button class="btn-ghost !py-1 !px-2 text-xs"><i data-lucide="save" class="w-3 h-3"></i></button>
+                </form>
+              </td>
+              <td>
+                <form action="/admin/members/delete" method="POST" onsubmit="return confirm('Decommission <%= u.username %>?')">
+                  <input type="hidden" name="username" value="<%= u.username %>" />
+                  <button class="btn-ghost btn-danger !py-1 !px-2 text-xs"><i data-lucide="trash-2" class="w-3 h-3"></i></button>
+                </form>
+              </td>
+            </tr>
+            <% }) %>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- ====================== MANAGE POINTS ====================== -->
+    <section class="glass hud-frame p-6 reveal lg:col-span-2">
+      <div class="flex items-center justify-between mb-4">
+        <h2 class="font-head tracking-widest text-mil-green flex items-center gap-2"><i data-lucide="gauge"></i> MANAGE POINTS</h2>
+        <form action="/admin/points/reset" method="POST" onsubmit="return confirm('Reset the ENTIRE leaderboard to zero?')">
+          <button class="btn-ghost btn-danger text-xs"><i data-lucide="rotate-ccw" class="w-3 h-3"></i> RESET LEADERBOARD</button>
+        </form>
+      </div>
+      <div class="grid sm:grid-cols-2 gap-3">
+        <% users.forEach(function(u){ var pts = points[u.username] || 0; %>
+          <div class="glass p-4">
+            <div class="flex items-center justify-between mb-3">
+              <span class="font-semibold text-emerald-100"><%= u.username %></span>
+              <span class="font-mono text-mil-green"><%= pts %> XP</span>
+            </div>
+            <div class="flex flex-wrap gap-1">
+              <% [['-50','-50'],['-10','-10'],['+10','10'],['+50','50'],['+100','100']].forEach(function(b){ %>
+                <form action="/admin/points/adjust" method="POST">
+                  <input type="hidden" name="username" value="<%= u.username %>" />
+                  <input type="hidden" name="delta" value="<%= b[1] %>" />
+                  <button class="btn-ghost !py-1 !px-2 text-xs <%= b[1]<0?'btn-danger':'' %>"><%= b[0] %></button>
+                </form>
+              <% }) %>
+              <form action="/admin/points/adjust" method="POST" class="flex gap-1">
+                <input type="hidden" name="username" value="<%= u.username %>" />
+                <input name="delta" type="number" class="field !py-1 !px-2 text-xs w-20" placeholder="bonus" />
+                <button class="btn-ghost !py-1 !px-2 text-xs"><i data-lucide="award" class="w-3 h-3"></i></button>
+              </form>
+              <form action="/admin/points/reset" method="POST" onsubmit="return confirm('Reset <%= u.username %> to 0?')">
+                <input type="hidden" name="username" value="<%= u.username %>" />
+                <button class="btn-ghost btn-danger !py-1 !px-2 text-xs">RESET</button>
+              </form>
+            </div>
+          </div>
+        <% }) %>
+      </div>
+    </section>
+
+    <!-- ====================== MANAGE MISSIONS ====================== -->
+    <section class="glass hud-frame p-6 reveal lg:col-span-2">
+      <h2 class="font-head tracking-widest text-mil-green mb-4 flex items-center gap-2"><i data-lucide="list-checks"></i> MANAGE MISSIONS</h2>
+      <div class="grid sm:grid-cols-2 gap-3">
+        <% tasks.missions.forEach(function(m){ %>
+          <div class="glass p-4">
+            <form action="/admin/missions/edit" method="POST" class="space-y-2">
+              <input type="hidden" name="taskId" value="<%= m.id %>" />
+              <input name="title" class="field !py-1.5 text-sm" value="<%= m.title %>" />
+              <div class="flex gap-2">
+                <input name="xp" type="number" class="field !py-1.5 text-sm w-20" value="<%= m.xp %>" />
+                <input name="category" class="field !py-1.5 text-sm flex-1" value="<%= m.category %>" />
+                <button class="btn-ghost !py-1.5 !px-2 text-xs"><i data-lucide="save" class="w-3 h-3"></i></button>
+              </div>
+            </form>
+            <form action="/admin/missions/delete" method="POST" class="mt-2" onsubmit="return confirm('Delete this mission?')">
+              <input type="hidden" name="taskId" value="<%= m.id %>" />
+              <button class="btn-ghost btn-danger !py-1 !px-2 text-xs w-full justify-center"><i data-lucide="trash-2" class="w-3 h-3"></i> DELETE MISSION</button>
+            </form>
+          </div>
+        <% }) %>
+      </div>
+    </section>
+  </div>
+</main>
+
+<%- include('partials/footer') %>

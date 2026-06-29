@@ -1,0 +1,77 @@
+<%- include('partials/head') %>
+<%- include('partials/nav') %>
+
+<main class="max-w-7xl mx-auto px-4 py-8">
+  <div class="flex flex-wrap items-center justify-between gap-3 mb-6">
+    <div>
+      <h1 class="font-head font-black tracking-widest text-2xl text-mil-green glow-text">SECTOR MAP</h1>
+      <p class="font-mono text-xs text-emerald-400/60" data-decrypt="TACTICAL DEPLOYMENT GRID">TACTICAL DEPLOYMENT GRID</p>
+    </div>
+    <span class="chip chip-danger"><i data-lucide="triangle-alert" class="w-3 h-3"></i> STYLIZED · FICTIONAL LOCATIONS</span>
+  </div>
+
+  <div class="grid lg:grid-cols-3 gap-6">
+    <!-- map -->
+    <div class="lg:col-span-2 glass hud-frame p-6 reveal">
+      <div class="map-wrap mx-auto" style="max-width:460px; aspect-ratio: 100/120;">
+        <div class="map-radar-sweep"></div>
+        <svg viewBox="0 0 100 120" class="w-full h-full" style="filter: drop-shadow(0 0 16px rgba(63,255,159,.25))">
+          <defs>
+            <linearGradient id="land" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stop-color="rgba(63,255,159,.18)" />
+              <stop offset="100%" stop-color="rgba(31,122,77,.10)" />
+            </linearGradient>
+            <pattern id="hatch" width="4" height="4" patternUnits="userSpaceOnUse">
+              <path d="M0,4 l4,-4" stroke="rgba(63,255,159,.12)" stroke-width="0.4" />
+            </pattern>
+          </defs>
+          <!-- stylized landmass (not geographically accurate — fictional) -->
+          <path d="M38,6 L48,4 L55,9 L52,16 L60,18 L70,16 L74,22 L68,30 L72,40 L66,50 L60,62 L54,74 L50,90 L46,104 L43,114 L40,104 L38,92 L34,78 L28,66 L22,54 L18,44 L20,34 L16,28 L22,22 L30,24 L34,16 L32,10 Z"
+                fill="url(#land)" stroke="rgba(63,255,159,.6)" stroke-width="0.7" />
+          <path d="M38,6 L48,4 L55,9 L52,16 L60,18 L70,16 L74,22 L68,30 L72,40 L66,50 L60,62 L54,74 L50,90 L46,104 L43,114 L40,104 L38,92 L34,78 L28,66 L22,54 L18,44 L20,34 L16,28 L22,22 L30,24 L34,16 L32,10 Z"
+                fill="url(#hatch)" />
+        </svg>
+
+        <!-- pins -->
+        <% Object.keys(members).forEach(function(name){ var m = members[name]; %>
+          <div class="pin" style="left:<%= m.sector.x %>%; top:<%= m.sector.y %>%" onclick="openSector('<%= name %>')" title="<%= m.posting %>">
+            <div class="pin-dot" style="background:<%= m.accent %>; box-shadow:0 0 14px <%= m.accent %>"></div>
+            <div class="pin-label" style="color:<%= m.accent %>"><%= m.posting %></div>
+          </div>
+        <% }) %>
+      </div>
+      <p class="font-mono text-[11px] text-emerald-400/40 text-center mt-3">▶ Click a glowing pin to decrypt posting intel</p>
+    </div>
+
+    <!-- sector intel panel -->
+    <div class="glass hud-frame p-6 reveal">
+      <div id="sector-panel" class="opacity-0 transition-opacity duration-500">
+        <p class="font-mono text-sm text-emerald-400/50">Select a sector pin to view classified posting information.</p>
+      </div>
+      <div class="mt-6 pt-5 border-t border-mil-green/15">
+        <h3 class="font-mono text-xs text-emerald-400/60 mb-2">DEPLOYED OFFICERS</h3>
+        <div class="space-y-1">
+          <% Object.keys(members).forEach(function(name){ var m=members[name]; %>
+            <button onclick="openSector('<%= name %>')" class="w-full flex items-center justify-between px-3 py-2 rounded lb-row text-left">
+              <span class="font-mono text-sm"><span style="color:<%= m.accent %>">●</span> <%= name %></span>
+              <span class="font-mono text-[11px] text-emerald-400/60"><%= m.posting %></span>
+            </button>
+          <% }) %>
+        </div>
+      </div>
+    </div>
+  </div>
+</main>
+
+<script>
+  // hand sector data to the client for the intel panel
+  window.SECTORS = <%- JSON.stringify(
+    Object.keys(members).reduce(function(acc, name){
+      var m = members[name];
+      acc[name] = { username: name, posting: m.posting, rank: m.rank, callsign: m.callsign, clearance: m.clearance, status: m.status };
+      return acc;
+    }, {})
+  ) %>;
+</script>
+
+<%- include('partials/footer') %>

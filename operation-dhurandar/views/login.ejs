@@ -1,0 +1,40 @@
+<%- include('partials/head') %>
+<%- include('partials/loader') %>
+<%- include('partials/nav') %>
+
+<main class="max-w-md mx-auto px-4 py-16">
+  <div class="glass hud-frame p-8 reveal">
+    <div class="text-center mb-8">
+      <span class="emblem text-2xl mx-auto mb-4"><i data-lucide="fingerprint"></i></span>
+      <h1 class="font-head font-black tracking-widest text-2xl text-mil-green glow-text">SECURE LOGIN</h1>
+      <p class="font-mono text-xs text-emerald-400/60 mt-2" data-decrypt="AUTHENTICATION REQUIRED">AUTHENTICATION REQUIRED</p>
+    </div>
+
+    <form action="/login" method="POST" class="space-y-5">
+      <div>
+        <label class="label" for="username">Officer ID</label>
+        <input class="field mt-1" type="text" id="username" name="username" autocomplete="username" placeholder="e.g. Piyush" required autofocus />
+      </div>
+      <div>
+        <label class="label" for="password">Passphrase</label>
+        <input class="field mt-1" type="password" id="password" name="password" autocomplete="current-password" placeholder="••••••••" required />
+      </div>
+      <button type="submit" class="btn-primary w-full justify-center">
+        <i data-lucide="shield-check" class="w-4 h-4"></i> AUTHENTICATE
+      </button>
+    </form>
+
+    <div class="mt-6 pt-5 border-t border-mil-green/15 text-center">
+      <p class="font-mono text-[11px] text-emerald-400/50 leading-relaxed">
+        DEMO CREDENTIALS · stored in <span class="text-mil-green">data/auth.txt</span><br />
+        Piyush / Gaurang / Durvankur / Vedant — password: <span class="text-mil-green">password123</span>
+      </p>
+    </div>
+  </div>
+
+  <p class="text-center mt-6 font-mono text-[11px] text-emerald-400/40">
+    ⚠ FICTIONAL ENTERTAINMENT — no real data, logos, or branding.
+  </p>
+</main>
+
+<%- include('partials/footer') %>

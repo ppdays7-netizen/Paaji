@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title><%= typeof title !== 'undefined' ? title : 'Operation DHURANDAR' %> · DHURANDAR</title>
+  <meta name="description" content="Operation DHURANDAR — a fictional, movie-inspired classified personnel portal. Entertainment only." />
+
+  <!-- Military / terminal fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700;900&family=Rajdhani:wght@400;500;600;700&family=Share+Tech+Mono&display=swap" rel="stylesheet" />
+
+  <!-- TailwindCSS (Play CDN — fine for a demo / college project) -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            mil: {
+              bg: '#05080a',
+              panel: '#0a1410',
+              green: '#3fff9f',
+              greendim: '#1f7a4d',
+              amber: '#ffd23f',
+              danger: '#ff4d4d',
+              cyan: '#58f5ff',
+            },
+          },
+          fontFamily: {
+            head: ['Orbitron', 'sans-serif'],
+            body: ['Rajdhani', 'sans-serif'],
+            mono: ['"Share Tech Mono"', 'monospace'],
+          },
+        },
+      },
+    };
+  </script>
+
+  <!-- Lucide icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+
+  <link rel="stylesheet" href="/css/style.css" />
+</head>
+<body class="bg-mil-bg text-emerald-100 font-body min-h-screen antialiased selection:bg-mil-green/30">
+  <!-- Animated background layers -->
+  <canvas id="particles" class="fixed inset-0 -z-20"></canvas>
+  <div class="grid-overlay fixed inset-0 -z-10 pointer-events-none"></div>
+  <div class="scanline fixed inset-0 -z-10 pointer-events-none"></div>
+  <div class="vignette fixed inset-0 -z-10 pointer-events-none"></div>

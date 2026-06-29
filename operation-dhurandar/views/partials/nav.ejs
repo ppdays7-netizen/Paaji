@@ -1,0 +1,44 @@
+<nav class="sticky top-0 z-40 backdrop-blur-md bg-mil-bg/70 border-b border-mil-green/20">
+  <div class="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between gap-4">
+    <a href="<%= currentUser ? '/dashboard' : '/' %>" class="flex items-center gap-3 group">
+      <span class="emblem"><i data-lucide="shield-half"></i></span>
+      <div class="leading-none">
+        <span class="font-head font-black tracking-widest text-mil-green text-lg">DHURANDAR</span>
+        <div class="text-[10px] tracking-[0.3em] text-emerald-400/60 font-mono">CLASSIFIED · FICTIONAL</div>
+      </div>
+    </a>
+
+    <% if (currentUser) { %>
+      <div class="hidden md:flex items-center gap-1 font-mono text-sm">
+        <a href="/dashboard" class="navlink">DASHBOARD</a>
+        <a href="/map" class="navlink">SECTOR MAP</a>
+        <a href="/leaderboard" class="navlink">LEADERBOARD</a>
+        <a href="/profile" class="navlink">MY DOSSIER</a>
+        <% if (currentUser.rank === 'Brigadier') { %>
+          <a href="/admin" class="navlink text-mil-amber">COMMAND</a>
+        <% } %>
+      </div>
+      <div class="flex items-center gap-3">
+        <div class="hidden sm:block text-right leading-none">
+          <div class="text-mil-green font-semibold text-sm"><%= currentUser.username %></div>
+          <div class="text-[10px] text-emerald-400/60 font-mono uppercase"><%= currentUser.rank %></div>
+        </div>
+        <a href="/logout" class="btn-ghost text-xs"><i data-lucide="power" class="w-4 h-4"></i><span class="hidden sm:inline">LOGOUT</span></a>
+      </div>
+    <% } else { %>
+      <a href="/login" class="btn-primary text-sm"><i data-lucide="lock" class="w-4 h-4"></i> SECURE LOGIN</a>
+    <% } %>
+  </div>
+
+  <% if (currentUser) { %>
+  <!-- mobile nav -->
+  <div class="md:hidden flex overflow-x-auto gap-1 px-4 pb-2 font-mono text-xs">
+    <a href="/dashboard" class="navlink">DASH</a>
+    <a href="/map" class="navlink">MAP</a>
+    <a href="/leaderboard" class="navlink">RANKS</a>
+    <a href="/profile" class="navlink">DOSSIER</a>
+    <% if (currentUser.rank === 'Brigadier') { %><a href="/admin" class="navlink text-mil-amber">CMD</a><% } %>
+  </div>
+  <% } %>
+</nav>
+<%- include('flash') %>

@@ -1,0 +1,33 @@
+{
+  "name": "operation-dhurandar",
+  "version": "1.0.0",
+  "description": "Operation DHURANDAR — a fictional, movie-inspired classified military personnel portal (entertainment only).",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "nodemon server.js"
+  },
+  "keywords": [
+    "fictional",
+    "military",
+    "dashboard",
+    "express",
+    "ejs",
+    "demo"
+  ],
+  "author": "Piyush",
+  "license": "MIT",
+  "dependencies": {
+    "bcryptjs": "^2.4.3",
+    "connect-flash": "^0.1.1",
+    "ejs": "^3.1.10",
+    "express": "^4.19.2",
+    "express-session": "^1.18.0"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

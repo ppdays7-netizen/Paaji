@@ -1,0 +1,6 @@
+<% if (typeof flash !== 'undefined' && flash) { %>
+  <div class="flash-toast <%= flash.type === 'error' ? 'flash-error' : 'flash-success' %>" role="status">
+    <i data-lucide="<%= flash.type === 'error' ? 'shield-alert' : 'shield-check' %>" class="w-4 h-4 shrink-0"></i>
+    <span class="font-mono text-sm"><%= flash.message %></span>
+  </div>
+<% } %>

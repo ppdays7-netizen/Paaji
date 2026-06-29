@@ -1,0 +1,14 @@
+<%- include('partials/head') %>
+<%- include('partials/nav') %>
+
+<main class="max-w-xl mx-auto px-4 py-24 text-center">
+  <div class="glass hud-frame p-10 reveal" style="border-color: rgba(255,77,77,.4)">
+    <span class="emblem chip-danger mx-auto mb-6 text-2xl" style="color:#ff8a8a;border-color:#ff4d4d66"><i data-lucide="shield-x"></i></span>
+    <h1 class="font-head font-black text-4xl text-mil-danger" style="text-shadow:0 0 20px rgba(255,77,77,.5)" data-decrypt="ACCESS DENIED">ACCESS DENIED</h1>
+    <p class="font-mono text-sm text-emerald-100/70 mt-4"><%= typeof reason !== 'undefined' ? reason : 'Insufficient clearance.' %></p>
+    <p class="font-mono text-xs text-emerald-400/50 mt-2">INSUFFICIENT CLEARANCE — this incident has been logged.</p>
+    <a href="/dashboard" class="btn-ghost mt-8 inline-flex"><i data-lucide="arrow-left" class="w-4 h-4"></i> RETURN TO DASHBOARD</a>
+  </div>
+</main>
+
+<%- include('partials/footer') %>

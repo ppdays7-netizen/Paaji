@@ -1,0 +1,114 @@
+<%- include('partials/head') %>
+<%- include('partials/nav') %>
+
+<main class="max-w-7xl mx-auto px-4 py-8">
+  <!-- header strip -->
+  <div class="flex flex-wrap items-center justify-between gap-3 mb-6">
+    <div>
+      <h1 class="font-head font-black tracking-widest text-2xl text-mil-green glow-text">MISSION CONTROL</h1>
+      <p class="font-mono text-xs text-emerald-400/60" data-decrypt="WELCOME BACK, OPERATIVE">WELCOME BACK, OPERATIVE</p>
+    </div>
+    <div class="flex gap-2">
+      <span class="chip"><span class="status-dot"></span> SECURE SESSION</span>
+      <span class="chip chip-amber"><i data-lucide="users" class="w-3 h-3"></i> <%= memberCount %> ACTIVE</span>
+    </div>
+  </div>
+
+  <div class="grid lg:grid-cols-3 gap-6">
+    <!-- ===================== LEFT: profile card ===================== -->
+    <section class="lg:col-span-1 space-y-6">
+      <div class="glass hud-frame p-6 reveal" style="border-color: <%= (profile.accent||'#3fff9f') %>55">
+        <div class="flex items-center gap-4">
+          <div class="w-16 h-16 rounded-xl flex items-center justify-center font-head text-2xl"
+               style="background:<%= (profile.accent||'#3fff9f') %>18; border:1px solid <%= (profile.accent||'#3fff9f') %>66; color:<%= (profile.accent||'#3fff9f') %>">
+            <%= currentUser.username.charAt(0) %>
+          </div>
+          <div>
+            <h2 class="font-head text-xl text-emerald-100"><%= currentUser.username %></h2>
+            <div class="font-mono text-xs uppercase" style="color:<%= profile.accent||'#3fff9f' %>"><%= profile.rank %> · <%= profile.callsign || '—' %></div>
+            <div class="text-mil-amber text-sm mt-1"><%= profile.badge || '★' %></div>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-2 gap-3 mt-5 font-mono text-sm">
+          <div class="glass p-3"><div class="text-[10px] text-emerald-400/60">POSTING</div><div class="text-mil-green"><%= profile.posting %></div></div>
+          <div class="glass p-3"><div class="text-[10px] text-emerald-400/60">SERVICE</div><div class="text-mil-green"><%= profile.years %> YRS</div></div>
+          <div class="glass p-3"><div class="text-[10px] text-emerald-400/60">CLEARANCE</div><div class="text-mil-amber text-xs"><%= profile.clearance %></div></div>
+          <div class="glass p-3"><div class="text-[10px] text-emerald-400/60">STATUS</div><div class="text-mil-green text-xs"><%= profile.status %></div></div>
+        </div>
+
+        <!-- XP -->
+        <div class="mt-5">
+          <div class="flex justify-between font-mono text-xs mb-1">
+            <span class="text-emerald-400/60">CURRENT XP · LVL <%= myLevel %></span>
+            <span class="text-mil-green"><span id="my-xp"><%= myXP %></span> XP</span>
+          </div>
+          <div class="xp-track"><div class="xp-fill" id="my-xp-bar" data-pct="<%= myXP % 100 %>"></div></div>
+        </div>
+
+        <a href="/profile" class="btn-ghost w-full justify-center mt-5 text-xs"><i data-lucide="id-card" class="w-4 h-4"></i> OPEN FULL DOSSIER</a>
+      </div>
+
+      <!-- mini leaderboard -->
+      <div class="glass p-5 reveal">
+        <h3 class="font-head tracking-widest text-mil-green text-sm mb-3 flex items-center gap-2"><i data-lucide="trophy" class="w-4 h-4"></i> RANKINGS</h3>
+        <div id="mini-leaderboard">
+          <% leaderboard.forEach(function(r){ %>
+            <div class="lb-row flex items-center justify-between px-3 py-2 rounded">
+              <span class="font-mono text-sm"><span class="text-emerald-400/50">#<%= r.position %></span> <%= r.username %></span>
+              <span class="font-mono text-mil-green"><%= r.points %></span>
+            </div>
+          <% }) %>
+        </div>
+        <a href="/leaderboard" class="font-mono text-[11px] text-emerald-400/60 hover:text-mil-green block mt-3">FULL LEADERBOARD →</a>
+      </div>
+    </section>
+
+    <!-- ===================== RIGHT: missions ===================== -->
+    <section class="lg:col-span-2 space-y-6">
+      <div class="glass hud-frame p-6 reveal">
+        <div class="flex items-center justify-between mb-4">
+          <h2 class="font-head tracking-widest text-mil-green flex items-center gap-2"><i data-lucide="list-checks"></i> MISSION BOARD</h2>
+          <span class="chip"><%= completed.length %>/<%= missions.length %> CLEARED</span>
+        </div>
+
+        <div class="grid sm:grid-cols-2 gap-3">
+          <% missions.forEach(function(m){ var done = completed.indexOf(m.id) !== -1; %>
+            <div data-mission="<%= m.id %>" class="glass card-hover p-4 flex flex-col justify-between <%= done ? 'opacity-50' : '' %>">
+              <div>
+                <div class="flex items-center justify-between">
+                  <span class="chip chip-amber"><%= m.category %></span>
+                  <span class="font-mono text-mil-green text-sm">+<%= m.xp %> XP</span>
+                </div>
+                <p class="text-emerald-100/90 mt-3 leading-snug"><%= m.title %></p>
+              </div>
+              <div class="mt-4">
+                <% if (done) { %>
+                  <span class="chip"><i data-lucide="check" class="w-3 h-3"></i> COMPLETED</span>
+                <% } else { %>
+                  <button onclick="completeMission('<%= m.id %>', this)" class="btn-ghost text-xs w-full justify-center">
+                    <i data-lucide="check-circle" class="w-4 h-4"></i> MARK COMPLETE
+                  </button>
+                <% } %>
+              </div>
+            </div>
+          <% }) %>
+        </div>
+        <p class="font-mono text-[11px] text-emerald-400/40 mt-4">Each mission can be cleared once — duplicate XP is blocked server-side.</p>
+      </div>
+
+      <!-- quick links -->
+      <div class="grid sm:grid-cols-3 gap-4">
+        <a href="/map" class="glass card-hover p-5 reveal"><span class="emblem mb-3"><i data-lucide="map"></i></span><div class="font-head text-mil-green text-sm">SECTOR MAP</div><p class="text-emerald-100/60 text-xs mt-1">Officer deployments</p></a>
+        <a href="/leaderboard" class="glass card-hover p-5 reveal"><span class="emblem mb-3"><i data-lucide="bar-chart-3"></i></span><div class="font-head text-mil-green text-sm">LEADERBOARD</div><p class="text-emerald-100/60 text-xs mt-1">Unit rankings</p></a>
+        <% if (currentUser.rank === 'Brigadier') { %>
+          <a href="/admin" class="glass card-hover p-5 reveal" style="border-color:#ffd23f55"><span class="emblem mb-3" style="color:#ffd23f;border-color:#ffd23f66"><i data-lucide="terminal"></i></span><div class="font-head text-mil-amber text-sm">COMMAND CENTRE</div><p class="text-emerald-100/60 text-xs mt-1">Brigadier only</p></a>
+        <% } else { %>
+          <div class="glass p-5 reveal opacity-60"><span class="emblem mb-3 chip-danger"><i data-lucide="lock"></i></span><div class="font-head text-emerald-400/60 text-sm">COMMAND CENTRE</div><p class="text-emerald-100/40 text-xs mt-1">Brigadier clearance required</p></div>
+        <% } %>
+      </div>
+    </section>
+  </div>
+</main>
+
+<%- include('partials/footer') %>
