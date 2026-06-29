@@ -1,0 +1,104 @@
+```html
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Powder Cost Calculator</title>
+
+<style>
+body{
+    font-family: Arial, sans-serif;
+    background:#f4f4f4;
+    display:flex;
+    justify-content:center;
+    align-items:center;
+    height:100vh;
+    margin:0;
+}
+
+.container{
+    background:#fff;
+    padding:30px;
+    border-radius:12px;
+    box-shadow:0 0 15px rgba(0,0,0,0.1);
+    width:350px;
+}
+
+h2{
+    text-align:center;
+    margin-bottom:20px;
+}
+
+label{
+    display:block;
+    margin-top:15px;
+    font-weight:bold;
+}
+
+input{
+    width:100%;
+    padding:10px;
+    margin-top:5px;
+    border:1px solid #ccc;
+    border-radius:6px;
+    box-sizing:border-box;
+}
+
+button{
+    width:100%;
+    padding:12px;
+    margin-top:20px;
+    border:none;
+    background:#28a745;
+    color:white;
+    font-size:16px;
+    border-radius:6px;
+    cursor:pointer;
+}
+
+button:hover{
+    background:#218838;
+}
+
+.result{
+    margin-top:20px;
+    text-align:center;
+    font-size:20px;
+    font-weight:bold;
+}
+</style>
+</head>
+<body>
+
+<div class="container">
+    <h2>Powder Cost Calculator</h2>
+
+    <label>Price Per Gram (₹)</label>
+    <input type="number" id="pricePerGram" value="1000">
+
+    <label>Quantity (Grams)</label>
+    <input type="number" id="grams" placeholder="Enter grams">
+
+    <button onclick="calculateCost()">Calculate</button>
+
+    <div class="result" id="result">
+        Total Cost: ₹0
+    </div>
+</div>
+
+<script>
+function calculateCost() {
+    const price = parseFloat(document.getElementById("pricePerGram").value) || 0;
+    const grams = parseFloat(document.getElementById("grams").value) || 0;
+
+    const total = price * grams;
+
+    document.getElementById("result").innerHTML =
+        "Total Cost: ₹" + total.toLocaleString('en-IN');
+}
+</script>
+
+</body>
+</html>
+```

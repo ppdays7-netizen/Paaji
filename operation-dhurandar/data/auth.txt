@@ -3,7 +3,7 @@
 # Lines beginning with '#' are ignored. Edit/append while the server runs;
 # accounts are reloaded automatically on the next login attempt.
 # NOTE: passwords are plain text for the demo. Set HASH_PASSWORDS=true to enable bcrypt.
-Piyush,password123,Brigadier
-Gaurang,password123,Major
-Durvankur,password123,Colonel
-Vedant,password123,Lieutenant
+Piyush,EmotionalPaaji,Brigadier
+Gaurang,HappyPajji,Major
+Durvankur,SadPaaji,Colonel
+Vedant,FearPaaji,Lieutenant
