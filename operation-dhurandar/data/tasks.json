@@ -1,14 +1,59 @@
 {
   "missions": [
-    { "id": "m1", "title": "Complete Assignment before Deadline", "xp": 20, "category": "Discipline" },
-    { "id": "m2", "title": "Help Classmate", "xp": 15, "category": "Camaraderie" },
-    { "id": "m3", "title": "Attend Every Lecture", "xp": 30, "category": "Discipline" },
-    { "id": "m4", "title": "Win Coding Competition", "xp": 100, "category": "Combat Ops" },
-    { "id": "m5", "title": "Organize Team Meeting", "xp": 40, "category": "Command" },
-    { "id": "m6", "title": "Fix Project Bug", "xp": 25, "category": "Combat Ops" },
-    { "id": "m7", "title": "Volunteer in College Event", "xp": 35, "category": "Camaraderie" },
-    { "id": "m8", "title": "Complete DSA Question", "xp": 15, "category": "Combat Ops" },
-    { "id": "m9", "title": "Present Seminar", "xp": 30, "category": "Command" }
+    {
+      "id": "m1",
+      "title": "Complete Assignment before Deadline",
+      "xp": 20,
+      "category": "Discipline"
+    },
+    {
+      "id": "m2",
+      "title": "Help Classmate",
+      "xp": 15,
+      "category": "Camaraderie"
+    },
+    {
+      "id": "m3",
+      "title": "Attend Every Lecture",
+      "xp": 30,
+      "category": "Discipline"
+    },
+    {
+      "id": "m4",
+      "title": "Win Coding Competition",
+      "xp": 100,
+      "category": "Combat Ops"
+    },
+    {
+      "id": "m5",
+      "title": "Organize Team Meeting",
+      "xp": 40,
+      "category": "Command"
+    },
+    {
+      "id": "m6",
+      "title": "Fix Project Bug",
+      "xp": 25,
+      "category": "Combat Ops"
+    },
+    {
+      "id": "m7",
+      "title": "Volunteer in College Event",
+      "xp": 35,
+      "category": "Camaraderie"
+    },
+    {
+      "id": "m8",
+      "title": "Complete DSA Question",
+      "xp": 15,
+      "category": "Combat Ops"
+    },
+    {
+      "id": "m9",
+      "title": "Present Seminar",
+      "xp": 30,
+      "category": "Command"
+    }
   ],
   "completions": {
     "Piyush": [],

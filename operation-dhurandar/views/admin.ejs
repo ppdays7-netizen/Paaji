@@ -19,11 +19,15 @@
         <div><label class="label">Name</label><input class="field mt-1" name="username" required placeholder="Officer name" /></div>
         <div><label class="label">Password</label><input class="field mt-1" name="password" required placeholder="Passphrase" /></div>
         <div>
-          <label class="label">Rank</label>
-          <select class="field mt-1" name="rank">
+          <label class="label">Rank <span class="text-emerald-400/40">(type any custom rank)</span></label>
+          <input class="field mt-1" name="rank" list="rank-suggestions" value="Lieutenant"
+                 placeholder="e.g. Field Marshal, Subedar, Commandant…" required />
+          <datalist id="rank-suggestions">
             <option>Lieutenant</option><option>Captain</option><option>Major</option>
-            <option>Colonel</option><option>Brigadier</option>
-          </select>
+            <option>Colonel</option><option>Brigadier</option><option>General</option>
+            <option>Field Marshal</option><option>Subedar</option><option>Havildar</option>
+            <option>Sepoy</option><option>Commandant</option><option>Wing Commander</option>
+          </datalist>
         </div>
         <button class="btn-primary w-full justify-center text-sm"><i data-lucide="plus" class="w-4 h-4"></i> COMMISSION OFFICER</button>
       </form>
@@ -58,11 +62,7 @@
               <td>
                 <form action="/admin/members/edit" method="POST" class="flex flex-wrap gap-1 items-center">
                   <input type="hidden" name="username" value="<%= u.username %>" />
-                  <select name="rank" class="field !py-1 !px-2 text-xs w-24">
-                    <% ['Lieutenant','Captain','Major','Colonel','Brigadier'].forEach(function(r){ %>
-                      <option <%= (m.rank||u.rank)===r?'selected':'' %>><%= r %></option>
-                    <% }) %>
-                  </select>
+                  <input name="rank" list="rank-suggestions" class="field !py-1 !px-2 text-xs w-28" value="<%= m.rank||u.rank %>" placeholder="rank" />
                   <input name="posting" class="field !py-1 !px-2 text-xs w-28" value="<%= m.posting || '' %>" placeholder="posting" />
                   <input name="years" type="number" class="field !py-1 !px-2 text-xs w-16" value="<%= m.years || '' %>" placeholder="yrs" />
                   <input name="password" class="field !py-1 !px-2 text-xs w-24" placeholder="new pass" />

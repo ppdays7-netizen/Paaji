@@ -17,8 +17,14 @@
       "Final Command Authority"
     ],
     "currentMission": "Operation DHURANDAR — Overall Command",
-    "sector": { "x": 33, "y": 10 },
-    "geo": { "lat": 34.1526, "lng": 77.5771 },
+    "sector": {
+      "x": 33,
+      "y": 10
+    },
+    "geo": {
+      "lat": 34.1526,
+      "lng": 77.5771
+    },
     "badge": "★★★",
     "accent": "#ffd23f"
   },
@@ -38,8 +44,14 @@
       "Ground Operations"
     ],
     "currentMission": "Operation DHURANDAR — Eastern Logistics Corridor",
-    "sector": { "x": 79, "y": 41 },
-    "geo": { "lat": 26.1445, "lng": 91.7362 },
+    "sector": {
+      "x": 79,
+      "y": 41
+    },
+    "geo": {
+      "lat": 26.1445,
+      "lng": 91.7362
+    },
     "badge": "★★",
     "accent": "#3fb950"
   },
@@ -58,8 +70,14 @@
       "Strategic Analysis"
     ],
     "currentMission": "Operation DHURANDAR — SIGINT & Counter-Recon",
-    "sector": { "x": 21, "y": 47 },
-    "geo": { "lat": 26.9157, "lng": 70.9083 },
+    "sector": {
+      "x": 21,
+      "y": 47
+    },
+    "geo": {
+      "lat": 26.9157,
+      "lng": 70.9083
+    },
     "badge": "★★★",
     "accent": "#58a6ff"
   },
@@ -78,8 +96,14 @@
       "Field Execution"
     ],
     "currentMission": "Operation DHURANDAR — Drone Recon & Field Support",
-    "sector": { "x": 45, "y": 69 },
-    "geo": { "lat": 17.3850, "lng": 78.4867 },
+    "sector": {
+      "x": 45,
+      "y": 69
+    },
+    "geo": {
+      "lat": 17.385,
+      "lng": 78.4867
+    },
     "badge": "★",
     "accent": "#ff7b54"
   }

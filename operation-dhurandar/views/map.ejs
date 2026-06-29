@@ -1,16 +1,19 @@
 <%- include('partials/head') %>
 <%- include('partials/nav') %>
 
-<!-- D3 + TopoJSON for the orthographic globe -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/topojson/3.0.2/topojson.min.js"></script>
 
 <style>
-  #globe-wrap { position: relative; width: 100%; max-width: 620px; margin: 0 auto; aspect-ratio: 1; }
-  #globe { width: 100%; height: 100%; cursor: grab; touch-action: none; }
+  #globe-wrap { position: relative; width: 100%; max-width: 640px; margin: 0 auto; aspect-ratio: 1; }
+  #globe { width: 100%; height: 100%; cursor: grab; touch-action: none; display:block; }
   #globe:active { cursor: grabbing; }
-  .pin-label-g { font-family: 'Share Tech Mono', monospace; font-size: 9px; letter-spacing: .04em; }
-  @keyframes blipPulse { 0% { r: 3; opacity: 1; } 100% { r: 13; opacity: 0; } }
+  .pin-label-g { font-family: 'Share Tech Mono', monospace; font-size: 9px; letter-spacing: .04em; pointer-events:none; }
+  @keyframes blipPulse { 0% { r: 4; opacity: .9; } 100% { r: 15; opacity: 0; } }
+  .zoom-btns { position:absolute; right:10px; bottom:10px; display:flex; flex-direction:column; gap:6px; z-index:20; }
+  .zoom-btns button { width:34px; height:34px; border-radius:8px; background:rgba(10,20,16,.85);
+    border:1px solid rgba(63,255,159,.35); color:#3fff9f; font-size:18px; cursor:pointer; line-height:1; }
+  .zoom-btns button:hover { background:rgba(63,255,159,.18); box-shadow:0 0 12px rgba(63,255,159,.3); }
 </style>
 
 <main class="max-w-7xl mx-auto px-4 py-8">
@@ -23,15 +26,18 @@
   </div>
 
   <div class="grid lg:grid-cols-3 gap-6">
-    <!-- globe -->
     <div class="lg:col-span-2 glass hud-frame p-4 reveal">
       <div id="globe-wrap">
         <svg id="globe" viewBox="0 0 600 600" xmlns="http://www.w3.org/2000/svg"></svg>
+        <div class="zoom-btns">
+          <button id="zoom-in" title="Zoom in">+</button>
+          <button id="zoom-out" title="Zoom out">−</button>
+          <button id="zoom-reset" title="Reset" style="font-size:13px">⟳</button>
+        </div>
       </div>
-      <p class="font-mono text-[11px] text-emerald-400/40 text-center mt-2">▶ Drag to spin the globe · click a glowing pin or an officer to lock on</p>
+      <p class="font-mono text-[11px] text-emerald-400/40 text-center mt-2">▶ Drag to spin · scroll or use +/− to zoom · click a pin or officer to lock on</p>
     </div>
 
-    <!-- sector intel panel -->
     <div class="glass hud-frame p-6 reveal">
       <div id="sector-panel" class="opacity-0 transition-opacity duration-500">
         <p class="font-mono text-sm text-emerald-400/50">Select a placement pin to view classified posting information.</p>
@@ -52,7 +58,6 @@
 </main>
 
 <script>
-  // ----- officer data (real geo coords; clearly fictional postings) -----
   window.SECTORS = {};
   var OFFICERS = [
     <% Object.keys(members).forEach(function(name){ var m=members[name];
@@ -67,16 +72,14 @@
 
   (function buildGlobe(){
     var svg = d3.select('#globe');
-    var W = 600, H = 600, R = 270, cx = W/2, cy = H/2;
+    var W = 600, H = 600, cx = W/2, cy = H/2;
+    var baseScale = 250, scale = baseScale, MINS = 160, MAXS = 1100;
+    var centreIndia = [-80, -26, 0];
 
-    var projection = d3.geoOrthographic().scale(R).translate([cx, cy]).clipAngle(90);
-    // start centered on India
-    var rotation = [-80, -23, 0];
-    projection.rotate(rotation);
+    var projection = d3.geoOrthographic().scale(scale).translate([cx, cy]).clipAngle(90).rotate(centreIndia);
     var path = d3.geoPath(projection);
     var graticule = d3.geoGraticule10();
 
-    // ---- defs: ocean gradient + atmosphere glow ----
     var defs = svg.append('defs');
     var ocean = defs.append('radialGradient').attr('id','ocean').attr('cx','35%').attr('cy','30%');
     ocean.append('stop').attr('offset','0%').attr('stop-color','#0a2a20');
@@ -84,95 +87,102 @@
     ocean.append('stop').attr('offset','100%').attr('stop-color','#020806');
     var glow = defs.append('filter').attr('id','atmos').attr('x','-50%').attr('y','-50%').attr('width','200%').attr('height','200%');
     glow.append('feGaussianBlur').attr('stdDeviation','12').attr('result','b');
-    var merge = glow.append('feMerge'); merge.append('feMergeNode').attr('in','b'); merge.append('feMergeNode').attr('in','SourceGraphic');
+    var mg = glow.append('feMerge'); mg.append('feMergeNode').attr('in','b'); mg.append('feMergeNode').attr('in','SourceGraphic');
 
-    // ---- atmosphere halo (Apple-style glow ring) ----
-    svg.append('circle').attr('cx',cx).attr('cy',cy).attr('r',R+10)
-      .attr('fill','none').attr('stroke','#3fff9f').attr('stroke-width',3)
-      .attr('opacity',0.35).attr('filter','url(#atmos)');
-
-    // ---- ocean sphere ----
-    svg.append('path').datum({type:'Sphere'}).attr('d',path).attr('fill','url(#ocean)')
+    var atmo = svg.append('circle').attr('cx',cx).attr('cy',cy).attr('fill','none')
+      .attr('stroke','#3fff9f').attr('stroke-width',3).attr('opacity',0.35).attr('filter','url(#atmos)');
+    var sphere = svg.append('path').datum({type:'Sphere'}).attr('fill','url(#ocean)')
       .attr('stroke','#3fff9f').attr('stroke-opacity',0.4).attr('stroke-width',1);
-
-    // ---- graticule (the curved "bend" lines) ----
     var gGrat = svg.append('path').datum(graticule).attr('fill','none')
       .attr('stroke','#3fff9f').attr('stroke-opacity',0.12).attr('stroke-width',0.5);
-
-    var gLand = svg.append('g');   // countries
-    var gPins = svg.append('g');   // officer pins
+    var gLand  = svg.append('g');  // neighbouring countries (context)
+    var gIndia = svg.append('g');  // India official boundary (crown)
+    var gPins  = svg.append('g');  // officer placements
 
     function visible(o){
-      var c = projection.invert([cx, cy]); // center lon/lat
+      var c = projection.invert([cx, cy]);
       return d3.geoDistance([o.lng, o.lat], c) < Math.PI/2;
     }
 
     function render(){
       path = d3.geoPath(projection);
-      svg.selectAll('path').attr('d', path);
+      atmo.attr('r', projection.scale() + 8);
+      sphere.attr('d', path);
+      gGrat.attr('d', path);
       gLand.selectAll('path').attr('d', path);
+      gIndia.selectAll('path').attr('d', path);
 
       var pins = gPins.selectAll('g.pin').data(OFFICERS, function(d){ return d.username; });
       var enter = pins.enter().append('g').attr('class','pin').style('cursor','pointer')
-        .on('click', function(e,d){ openSector(d.username); });
-      enter.append('circle').attr('class','blip').attr('r',6);
+        .on('click', function(e,d){ focusOfficer(d.username); });
       enter.append('circle').attr('class','ring').attr('r',6).attr('fill','none').attr('stroke-width',1.5)
         .style('animation','blipPulse 1.8s ease-out infinite');
+      enter.append('circle').attr('class','blip').attr('r',5);
       enter.append('text').attr('class','pin-label-g').attr('text-anchor','middle').attr('dy','-12');
-      var all = enter.merge(pins);
-      all.each(function(d){
+      enter.merge(pins).each(function(d){
         var g = d3.select(this);
         if (!visible(d)) { g.style('display','none'); return; }
         var p = projection([d.lng, d.lat]);
         g.style('display',null).attr('transform','translate('+p[0]+','+p[1]+')');
         g.select('.blip').attr('fill', d.accent).attr('style','filter:drop-shadow(0 0 8px '+d.accent+')');
         g.select('.ring').attr('stroke', d.accent);
-        g.select('text').attr('fill', d.accent).attr('style','text-shadow:0 0 6px '+d.accent).text(d.posting.split('·')[0].trim());
+        g.select('text').attr('fill', d.accent).attr('style','text-shadow:0 0 6px '+d.accent)
+          .text(d.posting.split('·')[0].trim());
       });
     }
 
-    // ---- load world countries; degrade gracefully if offline ----
+    // neighbouring countries for context
     d3.json('https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json').then(function(world){
-      var countries = topojson.feature(world, world.objects.countries).features;
-      gLand.selectAll('path').data(countries).enter().append('path')
-        .attr('fill', function(d){ return d.properties.name === 'India' ? 'rgba(63,255,159,0.22)' : 'rgba(63,255,159,0.06)'; })
-        .attr('stroke', function(d){ return d.properties.name === 'India' ? '#3fff9f' : 'rgba(63,255,159,0.25)'; })
-        .attr('stroke-width', function(d){ return d.properties.name === 'India' ? 0.9 : 0.4; });
+      var feats = topojson.feature(world, world.objects.countries).features
+        .filter(function(d){ return d.properties.name !== 'India'; });
+      gLand.selectAll('path').data(feats).enter().append('path')
+        .attr('fill','rgba(63,255,159,0.05)').attr('stroke','rgba(63,255,159,0.18)').attr('stroke-width',0.4);
       render();
-    }).catch(function(){ render(); /* sphere + graticule + pins still render */ });
+    }).catch(function(){ render(); });
+
+    // India with full official boundary (the crown) — bundled locally, always available
+    d3.json('/data/india.geojson').then(function(india){
+      gIndia.selectAll('path').data(india.features).enter().append('path')
+        .attr('fill','rgba(63,255,159,0.22)').attr('stroke','#3fff9f').attr('stroke-width',1.4)
+        .attr('style','filter:drop-shadow(0 0 6px rgba(63,255,159,.5))');
+      render();
+    }).catch(function(){ render(); });
 
     render();
 
-    // ---- drag to spin ----
-    var v0, r0, q0;
-    svg.call(d3.drag()
-      .on('start', function(e){ idle = false; r0 = projection.rotate(); q0 = [e.x, e.y]; })
-      .on('drag', function(e){
-        var dx = e.x - q0[0], dy = e.y - q0[1];
-        var k = 0.4;
-        var rot = [ r0[0] + dx * k, Math.max(-89, Math.min(89, r0[1] - dy * k)), r0[2] ];
-        projection.rotate(rot); render();
-      })
-      .on('end', function(){ setTimeout(function(){ idle = true; }, 2500); })
-    );
-
-    // ---- gentle idle auto-rotation ----
-    var idle = true;
-    d3.timer(function(){
-      if (!idle) return;
-      var r = projection.rotate();
-      r[0] += 0.12;
-      projection.rotate(r); render();
+    // intro spin-in, then settle on India (placements stay visible)
+    projection.rotate([-120, -34, 0]);
+    d3.transition().duration(1500).tween('intro', function(){
+      var ip = d3.interpolate(projection.rotate(), centreIndia);
+      return function(t){ projection.rotate(ip(t)); render(); };
     });
 
-    // ---- focus an officer (rotate globe to centre them) ----
+    // drag to spin
+    var r0, q0;
+    svg.call(d3.drag()
+      .on('start', function(e){ r0 = projection.rotate(); q0 = [e.x, e.y]; })
+      .on('drag', function(e){
+        var k = 0.012 * (baseScale / projection.scale()) * 30;
+        var rot = [ r0[0] + (e.x-q0[0]) * k, Math.max(-89, Math.min(89, r0[1] - (e.y-q0[1]) * k)), r0[2] ];
+        projection.rotate(rot); render();
+      }));
+
+    // ---- zoom: scroll wheel + buttons ----
+    function setScale(s){ scale = Math.max(MINS, Math.min(MAXS, s)); projection.scale(scale); render(); }
+    svg.on('wheel', function(e){ e.preventDefault(); setScale(scale * (e.deltaY < 0 ? 1.12 : 0.89)); }, { passive:false });
+    d3.select('#zoom-in').on('click', function(){ setScale(scale * 1.2); });
+    d3.select('#zoom-out').on('click', function(){ setScale(scale / 1.2); });
+    d3.select('#zoom-reset').on('click', function(){ setScale(baseScale); projection.rotate(centreIndia); render(); });
+
+    // focus an officer: rotate to centre + zoom in a little
     window.focusOfficer = function(name){
       var o = window.SECTORS[name]; if (!o) return;
-      idle = false;
-      d3.transition().duration(900).tween('rotate', function(){
-        var ip = d3.interpolate(projection.rotate(), [-o.lng, -o.lat, 0]);
-        return function(t){ projection.rotate(ip(t)); render(); };
-      }).on('end', function(){ openSector(name); setTimeout(function(){ idle = true; }, 3000); });
+      var targetScale = Math.max(scale, 420);
+      d3.transition().duration(900).tween('focus', function(){
+        var ir = d3.interpolate(projection.rotate(), [-o.lng, -o.lat, 0]);
+        var is = d3.interpolate(projection.scale(), targetScale);
+        return function(t){ projection.rotate(ir(t)); scale = is(t); projection.scale(scale); render(); };
+      }).on('end', function(){ openSector(name); });
     };
   })();
 </script>
