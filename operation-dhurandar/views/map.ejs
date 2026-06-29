@@ -1,50 +1,34 @@
 <%- include('partials/head') %>
 <%- include('partials/nav') %>
 
-<!-- Leaflet (real interactive map) -->
-<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<!-- D3 + TopoJSON for the orthographic globe -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/topojson/3.0.2/topojson.min.js"></script>
 
 <style>
-  #india-map { height: 540px; border-radius: 12px; background: #04100a; }
-  #india-map .leaflet-tile { filter: hue-rotate(80deg) saturate(0.7) brightness(0.75); }
-  .leaflet-container { font-family: 'Share Tech Mono', monospace; background: #04100a; }
-  .leaflet-popup-content-wrapper, .leaflet-popup-tip {
-    background: rgba(10,20,16,.95); color: #d1fae5; border: 1px solid rgba(63,255,159,.4);
-    box-shadow: 0 0 24px rgba(63,255,159,.25);
-  }
-  .leaflet-popup-content { margin: 12px 14px; }
-  .leaflet-control-zoom a { background: rgba(10,20,16,.9); color: #3fff9f; border-color: rgba(63,255,159,.3); }
-  .leaflet-control-attribution { background: rgba(0,0,0,.5) !important; color: #4d6b5c !important; }
-  .leaflet-control-attribution a { color: #3fff9f !important; }
-  /* glowing pin */
-  .lpin { transform: translate(-50%, -100%); text-align: center; }
-  .lpin-dot { display:block; width:16px; height:16px; border-radius:50%; margin:0 auto; position:relative; }
-  .lpin-dot::after { content:''; position:absolute; inset:-6px; border-radius:50%; border:1px solid currentColor; animation: ping 1.8s ease-out infinite; }
-  .lpin-label { display:block; margin-top:4px; font-size:.6rem; letter-spacing:.08em; white-space:nowrap; text-shadow:0 0 8px currentColor; }
-  /* radar sweep overlay on the map */
-  .map-sweep { position:absolute; left:50%; top:50%; width:150%; height:150%; transform:translate(-50%,-50%);
-    border-radius:50%; pointer-events:none; z-index:450; mix-blend-mode:screen;
-    background: conic-gradient(from 0deg, rgba(63,255,159,.14), transparent 22%); animation: sweep 7s linear infinite; }
+  #globe-wrap { position: relative; width: 100%; max-width: 620px; margin: 0 auto; aspect-ratio: 1; }
+  #globe { width: 100%; height: 100%; cursor: grab; touch-action: none; }
+  #globe:active { cursor: grabbing; }
+  .pin-label-g { font-family: 'Share Tech Mono', monospace; font-size: 9px; letter-spacing: .04em; }
+  @keyframes blipPulse { 0% { r: 3; opacity: 1; } 100% { r: 13; opacity: 0; } }
 </style>
 
 <main class="max-w-7xl mx-auto px-4 py-8">
   <div class="flex flex-wrap items-center justify-between gap-3 mb-6">
     <div>
-      <h1 class="font-head font-black tracking-widest text-2xl text-mil-green glow-text">SECTOR MAP — INDIA</h1>
-      <p class="font-mono text-xs text-emerald-400/60" data-decrypt="OFFICER PLACEMENT GRID">OFFICER PLACEMENT GRID</p>
+      <h1 class="font-head font-black tracking-widest text-2xl text-mil-green glow-text">ORBITAL SECTOR MAP</h1>
+      <p class="font-mono text-xs text-emerald-400/60" data-decrypt="GLOBAL OFFICER PLACEMENT GRID">GLOBAL OFFICER PLACEMENT GRID</p>
     </div>
-    <span class="chip chip-danger"><i data-lucide="triangle-alert" class="w-3 h-3"></i> STYLIZED · FICTIONAL PLACEMENTS</span>
+    <span class="chip chip-danger"><i data-lucide="globe" class="w-3 h-3"></i> STYLIZED · FICTIONAL PLACEMENTS</span>
   </div>
 
   <div class="grid lg:grid-cols-3 gap-6">
-    <!-- map -->
+    <!-- globe -->
     <div class="lg:col-span-2 glass hud-frame p-4 reveal">
-      <div class="relative">
-        <div id="india-map"></div>
-        <div class="map-sweep"></div>
+      <div id="globe-wrap">
+        <svg id="globe" viewBox="0 0 600 600" xmlns="http://www.w3.org/2000/svg"></svg>
       </div>
-      <p class="font-mono text-[11px] text-emerald-400/40 text-center mt-3">▶ Click a glowing pin to decrypt the officer's placement</p>
+      <p class="font-mono text-[11px] text-emerald-400/40 text-center mt-2">▶ Drag to spin the globe · click a glowing pin or an officer to lock on</p>
     </div>
 
     <!-- sector intel panel -->
@@ -58,7 +42,7 @@
           <% Object.keys(members).forEach(function(name){ var m=members[name]; %>
             <button onclick="focusOfficer('<%= name %>')" class="w-full flex items-center justify-between px-3 py-2 rounded lb-row text-left">
               <span class="font-mono text-sm"><span style="color:<%= m.accent %>">●</span> <%= name %></span>
-              <span class="font-mono text-[11px] text-emerald-400/60"><%= m.posting %></span>
+              <span class="font-mono text-[11px] text-emerald-400/60 truncate max-w-[55%] text-right"><%= m.posting %></span>
             </button>
           <% }) %>
         </div>
@@ -68,63 +52,129 @@
 </main>
 
 <script>
-  // ----- officer data + computed India coordinates -----
-  // sector.x/y (0-100) map onto India's bounding box (lng 68->97, lat 37->8).
-  // This keeps placements clearly fictional/regional, not real sensitive sites.
+  // ----- officer data (real geo coords; clearly fictional postings) -----
   window.SECTORS = {};
   var OFFICERS = [
     <% Object.keys(members).forEach(function(name){ var m=members[name];
-       var lng = 68 + (m.sector.x/100)*(97-68);
-       var lat = 37 - (m.sector.y/100)*(37-8); %>
-    {
-      username: '<%= name %>',
-      posting: '<%= m.posting %>',
-      rank: '<%= m.rank %>',
-      callsign: '<%= m.callsign %>',
-      clearance: '<%= m.clearance %>',
-      status: '<%= m.status %>',
-      accent: '<%= m.accent %>',
-      lat: <%= lat.toFixed(3) %>,
-      lng: <%= lng.toFixed(3) %>
-    },
+       var lng = m.geo ? m.geo.lng : (68 + (m.sector.x/100)*(97-68));
+       var lat = m.geo ? m.geo.lat : (37 - (m.sector.y/100)*(37-8)); %>
+    { username: '<%= name %>', posting: '<%= m.posting %>', rank: '<%= m.rank %>',
+      callsign: '<%= m.callsign %>', clearance: '<%= m.clearance %>', status: '<%= m.status %>',
+      accent: '<%= m.accent %>', lng: <%= lng %>, lat: <%= lat %> },
     <% }) %>
   ];
   OFFICERS.forEach(function(o){ window.SECTORS[o.username] = o; });
 
-  // ----- init Leaflet map over India -----
-  var map = L.map('india-map', {
-    center: [23, 82], zoom: 4.4, minZoom: 4, maxZoom: 7,
-    scrollWheelZoom: false, zoomControl: true,
-    maxBounds: [[5, 66], [38, 99]], maxBoundsViscosity: 0.8
-  });
+  (function buildGlobe(){
+    var svg = d3.select('#globe');
+    var W = 600, H = 600, R = 270, cx = W/2, cy = H/2;
 
-  L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
-    attribution: 'Map © OpenStreetMap, © CARTO · Fictional demo',
-    subdomains: 'abcd', maxZoom: 7
-  }).addTo(map);
+    var projection = d3.geoOrthographic().scale(R).translate([cx, cy]).clipAngle(90);
+    // start centered on India
+    var rotation = [-80, -23, 0];
+    projection.rotate(rotation);
+    var path = d3.geoPath(projection);
+    var graticule = d3.geoGraticule10();
 
-  var markers = {};
-  OFFICERS.forEach(function(o){
-    var icon = L.divIcon({
-      className: '',
-      iconSize: [0,0],
-      html: '<div class="lpin" style="color:'+o.accent+'">'
-          + '<span class="lpin-dot" style="background:'+o.accent+';box-shadow:0 0 14px '+o.accent+'"></span>'
-          + '<span class="lpin-label">'+o.posting+'</span></div>'
+    // ---- defs: ocean gradient + atmosphere glow ----
+    var defs = svg.append('defs');
+    var ocean = defs.append('radialGradient').attr('id','ocean').attr('cx','35%').attr('cy','30%');
+    ocean.append('stop').attr('offset','0%').attr('stop-color','#0a2a20');
+    ocean.append('stop').attr('offset','60%').attr('stop-color','#06140e');
+    ocean.append('stop').attr('offset','100%').attr('stop-color','#020806');
+    var glow = defs.append('filter').attr('id','atmos').attr('x','-50%').attr('y','-50%').attr('width','200%').attr('height','200%');
+    glow.append('feGaussianBlur').attr('stdDeviation','12').attr('result','b');
+    var merge = glow.append('feMerge'); merge.append('feMergeNode').attr('in','b'); merge.append('feMergeNode').attr('in','SourceGraphic');
+
+    // ---- atmosphere halo (Apple-style glow ring) ----
+    svg.append('circle').attr('cx',cx).attr('cy',cy).attr('r',R+10)
+      .attr('fill','none').attr('stroke','#3fff9f').attr('stroke-width',3)
+      .attr('opacity',0.35).attr('filter','url(#atmos)');
+
+    // ---- ocean sphere ----
+    svg.append('path').datum({type:'Sphere'}).attr('d',path).attr('fill','url(#ocean)')
+      .attr('stroke','#3fff9f').attr('stroke-opacity',0.4).attr('stroke-width',1);
+
+    // ---- graticule (the curved "bend" lines) ----
+    var gGrat = svg.append('path').datum(graticule).attr('fill','none')
+      .attr('stroke','#3fff9f').attr('stroke-opacity',0.12).attr('stroke-width',0.5);
+
+    var gLand = svg.append('g');   // countries
+    var gPins = svg.append('g');   // officer pins
+
+    function visible(o){
+      var c = projection.invert([cx, cy]); // center lon/lat
+      return d3.geoDistance([o.lng, o.lat], c) < Math.PI/2;
+    }
+
+    function render(){
+      path = d3.geoPath(projection);
+      svg.selectAll('path').attr('d', path);
+      gLand.selectAll('path').attr('d', path);
+
+      var pins = gPins.selectAll('g.pin').data(OFFICERS, function(d){ return d.username; });
+      var enter = pins.enter().append('g').attr('class','pin').style('cursor','pointer')
+        .on('click', function(e,d){ openSector(d.username); });
+      enter.append('circle').attr('class','blip').attr('r',6);
+      enter.append('circle').attr('class','ring').attr('r',6).attr('fill','none').attr('stroke-width',1.5)
+        .style('animation','blipPulse 1.8s ease-out infinite');
+      enter.append('text').attr('class','pin-label-g').attr('text-anchor','middle').attr('dy','-12');
+      var all = enter.merge(pins);
+      all.each(function(d){
+        var g = d3.select(this);
+        if (!visible(d)) { g.style('display','none'); return; }
+        var p = projection([d.lng, d.lat]);
+        g.style('display',null).attr('transform','translate('+p[0]+','+p[1]+')');
+        g.select('.blip').attr('fill', d.accent).attr('style','filter:drop-shadow(0 0 8px '+d.accent+')');
+        g.select('.ring').attr('stroke', d.accent);
+        g.select('text').attr('fill', d.accent).attr('style','text-shadow:0 0 6px '+d.accent).text(d.posting.split('·')[0].trim());
+      });
+    }
+
+    // ---- load world countries; degrade gracefully if offline ----
+    d3.json('https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json').then(function(world){
+      var countries = topojson.feature(world, world.objects.countries).features;
+      gLand.selectAll('path').data(countries).enter().append('path')
+        .attr('fill', function(d){ return d.properties.name === 'India' ? 'rgba(63,255,159,0.22)' : 'rgba(63,255,159,0.06)'; })
+        .attr('stroke', function(d){ return d.properties.name === 'India' ? '#3fff9f' : 'rgba(63,255,159,0.25)'; })
+        .attr('stroke-width', function(d){ return d.properties.name === 'India' ? 0.9 : 0.4; });
+      render();
+    }).catch(function(){ render(); /* sphere + graticule + pins still render */ });
+
+    render();
+
+    // ---- drag to spin ----
+    var v0, r0, q0;
+    svg.call(d3.drag()
+      .on('start', function(e){ idle = false; r0 = projection.rotate(); q0 = [e.x, e.y]; })
+      .on('drag', function(e){
+        var dx = e.x - q0[0], dy = e.y - q0[1];
+        var k = 0.4;
+        var rot = [ r0[0] + dx * k, Math.max(-89, Math.min(89, r0[1] - dy * k)), r0[2] ];
+        projection.rotate(rot); render();
+      })
+      .on('end', function(){ setTimeout(function(){ idle = true; }, 2500); })
+    );
+
+    // ---- gentle idle auto-rotation ----
+    var idle = true;
+    d3.timer(function(){
+      if (!idle) return;
+      var r = projection.rotate();
+      r[0] += 0.12;
+      projection.rotate(r); render();
     });
-    var mk = L.marker([o.lat, o.lng], { icon: icon }).addTo(map);
-    mk.on('click', function(){ openSector(o.username); });
-    markers[o.username] = mk;
-  });
 
-  // focus + open intel when picking an officer from the side list
-  window.focusOfficer = function(name){
-    var o = window.SECTORS[name];
-    if (!o) return;
-    map.flyTo([o.lat, o.lng], 5.5, { duration: 0.8 });
-    if (markers[name]) markers[name].openPopup && markers[name].openPopup();
-    openSector(name);
-  };
+    // ---- focus an officer (rotate globe to centre them) ----
+    window.focusOfficer = function(name){
+      var o = window.SECTORS[name]; if (!o) return;
+      idle = false;
+      d3.transition().duration(900).tween('rotate', function(){
+        var ip = d3.interpolate(projection.rotate(), [-o.lng, -o.lat, 0]);
+        return function(t){ projection.rotate(ip(t)); render(); };
+      }).on('end', function(){ openSector(name); setTimeout(function(){ idle = true; }, 3000); });
+    };
+  })();
 </script>
 
 <%- include('partials/footer') %>
