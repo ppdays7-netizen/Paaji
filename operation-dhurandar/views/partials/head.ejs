@@ -6,10 +6,10 @@
   <title><%= typeof title !== 'undefined' ? title : 'Operation DHURANDAR' %> · DHURANDAR</title>
   <meta name="description" content="Operation DHURANDAR — a fictional, movie-inspired classified personnel portal. Entertainment only." />
 
-  <!-- Military / terminal fonts -->
+  <!-- Indian Army fonts: Bebas Neue (headers), Rajdhani (body), Share Tech Mono -->
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700;900&family=Rajdhani:wght@400;500;600;700&family=Share+Tech+Mono&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Rajdhani:wght@400;500;600;700&family=Share+Tech+Mono&display=swap" rel="stylesheet" />
 
   <!-- TailwindCSS (Play CDN — fine for a demo / college project) -->
   <script src="https://cdn.tailwindcss.com"></script>
@@ -19,17 +19,31 @@
         extend: {
           colors: {
             mil: {
-              bg: '#05080a',
-              panel: '#0a1410',
-              green: '#3fff9f',
-              greendim: '#1f7a4d',
-              amber: '#ffd23f',
-              danger: '#ff4d4d',
-              cyan: '#58f5ff',
+              bg:       '#141810',   /* dark olive black */
+              panel:    '#111510',   /* panel bg */
+              green:    '#D4AF37',   /* gold — primary accent */
+              greendim: '#4A5240',   /* olive — dim accent */
+              amber:    '#C8B560',   /* khaki */
+              danger:   '#8B1A1A',   /* army red */
+              cyan:     '#F5F0E8',   /* cream */
+            },
+            /* Remap emerald → olive/cream palette so all text-emerald-* classes follow the theme */
+            emerald: {
+              50:  '#FAF7F0',
+              100: '#F5F0E8',  /* cream — main text */
+              200: '#E8DEC0',
+              300: '#C8B560',  /* khaki — accent text */
+              400: '#A89A50',  /* dim gold — subdued labels */
+              500: '#8B7D3A',
+              600: '#6B6030',
+              700: '#4A5240',  /* olive */
+              800: '#2E3328',
+              900: '#1A1E16',
+              950: '#141810',
             },
           },
           fontFamily: {
-            head: ['Orbitron', 'sans-serif'],
+            head: ['"Bebas Neue"', 'sans-serif'],
             body: ['Rajdhani', 'sans-serif'],
             mono: ['"Share Tech Mono"', 'monospace'],
           },
