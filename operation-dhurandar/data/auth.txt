@@ -4,6 +4,7 @@
 # accounts are reloaded automatically on the next login attempt.
 # NOTE: passwords are plain text for the demo. Set HASH_PASSWORDS=true to enable bcrypt.
 Piyush,EmotionalPaaji,Brigadier
-Gaurang,HappyPaaji,Major
+Gaurang,HappyPaaji,Major Genral
 Durvankur,SadPaaji,Colonel
 Vedant,FearPaaji,Lieutenant
+Krish,AngryPaaji, Subedar Major
