@@ -7,4 +7,4 @@ Piyush,EmotionalPaaji,Brigadier
 Gaurang,HappyPaaji,Major Genral
 Durvankur,SadPaaji,Colonel
 Vedant,FearPaaji,Lieutenant
-Krish,AngryPaaji, Subedar Major
+
