@@ -100,6 +100,21 @@ async function createTables() {
     );
   `);
 
+  // Chat: one table for both the group "war room" and private DMs.
+  await query(`
+    CREATE TABLE IF NOT EXISTS messages (
+      id         BIGSERIAL PRIMARY KEY,
+      sender     TEXT NOT NULL,
+      recipient  TEXT,
+      channel    TEXT NOT NULL DEFAULT 'group',
+      convo      TEXT NOT NULL DEFAULT 'group',
+      body       TEXT NOT NULL,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
+  `);
+  await query(`CREATE INDEX IF NOT EXISTS "IDX_messages_group" ON messages (channel, id);`);
+  await query(`CREATE INDEX IF NOT EXISTS "IDX_messages_convo" ON messages (convo, id);`);
+
   // Session store table used by connect-pg-simple (keeps logins alive on Vercel).
   await query(`
     CREATE TABLE IF NOT EXISTS "session" (

@@ -1,0 +1,259 @@
+<%- include('partials/head') %>
+<%- include('partials/nav') %>
+
+<main class="max-w-7xl mx-auto px-4 py-8">
+  <div class="flex flex-wrap items-center justify-between gap-3 mb-6">
+    <div>
+      <h1 class="font-head font-black tracking-widest text-2xl text-mil-green glow-text">SECURE COMMS</h1>
+      <p class="font-mono text-xs text-emerald-400/60" data-decrypt="ENCRYPTED CHANNEL — EYES ONLY">ENCRYPTED CHANNEL — EYES ONLY</p>
+    </div>
+    <span class="chip"><span class="status-dot"></span> <span id="comms-status">LIVE</span></span>
+  </div>
+
+  <div class="grid lg:grid-cols-3 gap-6">
+    <!-- ============== sidebar: channels + officers ============== -->
+    <section class="lg:col-span-1 space-y-3">
+      <div class="glass hud-frame p-4">
+        <div class="text-[10px] font-mono tracking-[0.3em] text-emerald-400/60 mb-2">CHANNELS</div>
+        <button type="button" class="convo-item w-full text-left active" data-type="group">
+          <span class="emblem text-mil-green"><i data-lucide="radio" class="w-4 h-4"></i></span>
+          <div class="min-w-0 flex-1">
+            <div class="font-head font-bold tracking-wider text-mil-green text-sm">WAR ROOM</div>
+            <div class="text-[11px] text-emerald-400/50 font-mono truncate">All officers · broadcast</div>
+          </div>
+        </button>
+
+        <div class="text-[10px] font-mono tracking-[0.3em] text-emerald-400/60 mt-4 mb-2">DIRECT — OFFICERS</div>
+        <div id="officer-list" class="space-y-1 max-h-[55vh] overflow-y-auto pr-1">
+          <% conversations.forEach((c) => { %>
+            <button type="button" class="convo-item w-full text-left" data-type="dm" data-user="<%= c.username %>">
+              <span class="emblem" style="color: <%= c.accent %>"><%= c.badge %></span>
+              <div class="min-w-0 flex-1">
+                <div class="flex items-center justify-between gap-2">
+                  <span class="font-semibold text-sm text-emerald-100 truncate"><%= c.username %></span>
+                  <span class="text-[9px] font-mono uppercase text-emerald-400/40"><%= c.rank %></span>
+                </div>
+                <div class="text-[11px] text-emerald-400/50 font-mono truncate convo-preview">
+                  <%= c.lastBody ? c.lastBody : 'No transmissions yet' %>
+                </div>
+              </div>
+            </button>
+          <% }) %>
+          <% if (conversations.length === 0) { %>
+            <div class="text-[11px] text-emerald-400/40 font-mono py-2">No other officers commissioned.</div>
+          <% } %>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============== main: message panel ============== -->
+    <section class="lg:col-span-2">
+      <div class="glass hud-frame flex flex-col" style="height: 70vh;">
+        <div class="flex items-center gap-3 px-5 py-3 border-b border-mil-green/15">
+          <span id="thread-icon" class="emblem text-mil-green"><i data-lucide="radio" class="w-4 h-4"></i></span>
+          <div>
+            <div id="thread-title" class="font-head font-bold tracking-widest text-mil-green">WAR ROOM</div>
+            <div id="thread-sub" class="text-[10px] font-mono text-emerald-400/50">BROADCAST TO ALL OFFICERS</div>
+          </div>
+        </div>
+
+        <div id="message-feed" class="flex-1 overflow-y-auto px-5 py-4 space-y-3 font-body">
+          <div class="text-center text-emerald-400/40 font-mono text-xs py-8">Establishing secure link…</div>
+        </div>
+
+        <form id="send-form" class="flex items-center gap-2 px-4 py-3 border-t border-mil-green/15">
+          <input id="msg-input" type="text" autocomplete="off" maxlength="2000"
+                 class="flex-1 bg-mil-bg/60 border border-mil-green/25 rounded px-3 py-2 text-sm text-emerald-100 font-mono outline-none focus:border-mil-green/60 placeholder:text-emerald-400/30"
+                 placeholder="Type a transmission…" />
+          <button type="submit" class="btn-primary text-sm">
+            <i data-lucide="send" class="w-4 h-4"></i><span class="hidden sm:inline">SEND</span>
+          </button>
+        </form>
+      </div>
+    </section>
+  </div>
+</main>
+
+<%- include('partials/footer') %>
+
+<script>
+(function () {
+  var ME = <%- JSON.stringify(currentUser.username) %>;
+  var current = { type: 'group', user: null };
+  var lastId = 0;
+  var seen = {};            // id -> true, to avoid duplicate renders
+  var pollTimer = null;
+
+  var feed = document.getElementById('message-feed');
+  var form = document.getElementById('send-form');
+  var input = document.getElementById('msg-input');
+  var statusEl = document.getElementById('comms-status');
+
+  function esc(s) {
+    return String(s).replace(/[&<>"']/g, function (c) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+    });
+  }
+  function timeStr(iso) {
+    var d = new Date(iso);
+    return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  }
+
+  function endpoint(after) {
+    var a = '?after=' + (after || 0);
+    return current.type === 'group'
+      ? '/chat/api/group' + a
+      : '/chat/api/dm/' + encodeURIComponent(current.user) + a;
+  }
+
+  function renderMessage(m) {
+    if (seen[m.id]) return;
+    seen[m.id] = true;
+    var ph = feed.querySelector('.feed-placeholder');
+    if (ph) ph.remove();
+    if (m.id > lastId) lastId = m.id;
+
+    var mine = (m.sender || '').toLowerCase() === ME.toLowerCase();
+    var wrap = document.createElement('div');
+    wrap.className = 'flex ' + (mine ? 'justify-end' : 'justify-start');
+
+    var bubble = document.createElement('div');
+    bubble.className = 'max-w-[78%] rounded-lg px-3 py-2 border ' +
+      (mine ? 'bg-mil-green/10 border-mil-green/40' : 'bg-mil-panel/70 border-mil-green/15');
+
+    var head = '';
+    if (!mine) {
+      head = '<div class="text-[11px] font-mono font-bold text-mil-green mb-0.5">' + esc(m.sender) + '</div>';
+    }
+    bubble.innerHTML = head +
+      '<div class="text-sm text-emerald-100 break-words whitespace-pre-wrap">' + esc(m.body) + '</div>' +
+      '<div class="text-[9px] font-mono text-emerald-400/40 mt-1 text-right">' + timeStr(m.createdAt) + '</div>';
+
+    wrap.appendChild(bubble);
+    feed.appendChild(wrap);
+  }
+
+  function atBottom() {
+    return feed.scrollHeight - feed.scrollTop - feed.clientHeight < 80;
+  }
+
+  function poll() {
+    var stick = atBottom();
+    fetch(endpoint(lastId), { headers: { 'Accept': 'application/json' } })
+      .then(function (r) { return r.json(); })
+      .then(function (data) {
+        if (!data.ok) return;
+        statusEl.textContent = 'LIVE';
+        if (!feed.dataset.ready) { feed.innerHTML = ''; feed.dataset.ready = '1'; }
+        data.messages.forEach(renderMessage);
+        placeholderIfEmpty();
+        if (data.messages.length && stick) feed.scrollTop = feed.scrollHeight;
+      })
+      .catch(function () { statusEl.textContent = 'RECONNECTING'; });
+  }
+
+  function placeholderIfEmpty() {
+    if (feed.children.length === 0) {
+      feed.innerHTML = '<div class="feed-placeholder text-center text-emerald-400/40 font-mono text-xs py-8">' +
+        (current.type === 'group'
+          ? 'War room is quiet. Open the channel.'
+          : 'No transmissions with ' + esc(current.user) + ' yet.') + '</div>';
+    }
+  }
+
+  function switchThread(type, user, titleEl) {
+    current = { type: type, user: user || null };
+    lastId = 0; seen = {};
+    feed.innerHTML = '';
+    delete feed.dataset.ready;
+    feed.innerHTML = '<div class="text-center text-emerald-400/40 font-mono text-xs py-8">Establishing secure link…</div>';
+
+    var icon = document.getElementById('thread-icon');
+    var title = document.getElementById('thread-title');
+    var sub = document.getElementById('thread-sub');
+    if (type === 'group') {
+      icon.innerHTML = '<i data-lucide="radio" class="w-4 h-4"></i>';
+      title.textContent = 'WAR ROOM';
+      sub.textContent = 'BROADCAST TO ALL OFFICERS';
+      input.placeholder = 'Broadcast to the war room…';
+    } else {
+      icon.innerHTML = '<i data-lucide="user" class="w-4 h-4"></i>';
+      title.textContent = user;
+      sub.textContent = 'PRIVATE — ENCRYPTED DIRECT LINE';
+      input.placeholder = 'Message ' + user + '…';
+    }
+    if (window.lucide) lucide.createIcons();
+    poll();
+  }
+
+  // sidebar selection
+  document.querySelectorAll('.convo-item').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      document.querySelectorAll('.convo-item').forEach(function (b) { b.classList.remove('active'); });
+      btn.classList.add('active');
+      switchThread(btn.dataset.type, btn.dataset.user);
+    });
+  });
+
+  // send
+  form.addEventListener('submit', function (e) {
+    e.preventDefault();
+    var body = input.value.trim();
+    if (!body) return;
+    var payload = { body: body };
+    if (current.type === 'dm') payload.to = current.user;
+    input.value = '';
+    input.focus();
+    fetch('/chat/api/send', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+      body: JSON.stringify(payload),
+    })
+      .then(function (r) { return r.json(); })
+      .then(function (data) {
+        if (data.ok && data.message) {
+          if (!feed.dataset.ready) { feed.innerHTML = ''; feed.dataset.ready = '1'; }
+          renderMessage(data.message);
+          feed.scrollTop = feed.scrollHeight;
+        } else if (data.error) {
+          input.value = body;
+          alert(data.error);
+        }
+      })
+      .catch(function () { input.value = body; });
+  });
+
+  // refresh sidebar DM previews periodically
+  function refreshSidebar() {
+    fetch('/chat/api/conversations', { headers: { 'Accept': 'application/json' } })
+      .then(function (r) { return r.json(); })
+      .then(function (data) {
+        if (!data.ok) return;
+        data.conversations.forEach(function (c) {
+          var btn = document.querySelector('.convo-item[data-user="' + (window.CSS && CSS.escape ? CSS.escape(c.username) : c.username) + '"]');
+          if (!btn) return;
+          var prev = btn.querySelector('.convo-preview');
+          if (prev) prev.textContent = c.lastBody || 'No transmissions yet';
+        });
+      })
+      .catch(function () {});
+  }
+
+  // boot
+  switchThread('group', null);
+  pollTimer = setInterval(poll, 3000);
+  setInterval(refreshSidebar, 8000);
+})();
+</script>
+
+<style>
+  .convo-item {
+    display: flex; align-items: center; gap: 0.6rem;
+    padding: 0.5rem 0.6rem; border-radius: 0.5rem;
+    border: 1px solid transparent; transition: all 0.15s ease;
+  }
+  .convo-item:hover { background: rgba(63,255,159,0.06); border-color: rgba(63,255,159,0.2); }
+  .convo-item.active { background: rgba(63,255,159,0.1); border-color: rgba(63,255,159,0.45); }
+  #message-feed::-webkit-scrollbar, #officer-list::-webkit-scrollbar { width: 6px; }
+  #message-feed::-webkit-scrollbar-thumb, #officer-list::-webkit-scrollbar-thumb { background: rgba(63,255,159,0.25); border-radius: 3px; }
+</style>

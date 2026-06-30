@@ -23,6 +23,7 @@ const authRoutes = require('./routes/auth');
 const dashboardRoutes = require('./routes/dashboard');
 const adminRoutes = require('./routes/admin');
 const apiRoutes = require('./routes/api');
+const chatRoutes = require('./routes/chat');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -67,6 +68,7 @@ app.use('/', authRoutes);
 app.use('/', dashboardRoutes);
 app.use('/admin', adminRoutes);
 app.use('/api', apiRoutes);
+app.use('/chat', chatRoutes);
 
 /* ----------------------------- error handling --------------------------- */
 // 404 — page not found

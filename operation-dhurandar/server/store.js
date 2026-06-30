@@ -328,6 +328,130 @@ async function getLeaderboard() {
   return out;
 }
 
+/* ------------------------------- chat ----------------------------------- */
+// Messages are stored in one table. A GROUP (war-room) message has
+// channel='group' and recipient=NULL. A DIRECT message has channel='dm' and
+// recipient set to the other officer's username. Conversations between two
+// officers are keyed by a stable, order-independent pair id (lower|higher).
+
+/** Stable conversation key for a DM between two usernames. */
+function dmKey(a, b) {
+  const x = String(a || '').toLowerCase();
+  const y = String(b || '').toLowerCase();
+  return x < y ? x + '|' + y : y + '|' + x;
+}
+
+/** Persist a message. type: 'group' or 'dm'. */
+async function sendMessage(sender, body, opts) {
+  const text = String(body || '').trim();
+  if (!text) return { ok: false, error: 'Message cannot be empty.' };
+  if (text.length > 2000) return { ok: false, error: 'Message too long (2000 char max).' };
+
+  const channel = opts && opts.recipient ? 'dm' : 'group';
+  const recipient = channel === 'dm' ? String(opts.recipient).trim() : null;
+  const convo = channel === 'dm' ? dmKey(sender, recipient) : 'group';
+
+  if (channel === 'dm') {
+    const exists = await query('SELECT 1 FROM officers WHERE LOWER(username)=LOWER($1) LIMIT 1', [recipient]);
+    if (exists.rowCount === 0) return { ok: false, error: 'Recipient not found.' };
+  }
+
+  try {
+    const { rows } = await query(
+      `INSERT INTO messages (sender, recipient, channel, convo, body)
+       VALUES ($1,$2,$3,$4,$5)
+       RETURNING id, sender, recipient, channel, convo, body, created_at`,
+      [sender, recipient, channel, convo, text]
+    );
+    return { ok: true, message: rowToMessage(rows[0]) };
+  } catch (err) {
+    console.error('[store] sendMessage failed:', err.message);
+    return { ok: false, error: 'Database error while sending message.' };
+  }
+}
+
+function rowToMessage(r) {
+  return {
+    id: Number(r.id),
+    sender: r.sender,
+    recipient: r.recipient,
+    channel: r.channel,
+    body: r.body,
+    createdAt: r.created_at,
+  };
+}
+
+/** Latest group messages, oldest-first. Pass afterId to fetch only newer ones. */
+async function getGroupMessages(afterId) {
+  const after = Number(afterId) || 0;
+  const { rows } = await query(
+    `SELECT * FROM (
+       SELECT id, sender, recipient, channel, body, created_at
+       FROM messages
+       WHERE channel='group' AND id > $1
+       ORDER BY id DESC
+       LIMIT 200
+     ) t ORDER BY id ASC`,
+    [after]
+  );
+  return rows.map(rowToMessage);
+}
+
+/** DM thread between `me` and `other`, oldest-first. */
+async function getDirectMessages(me, other, afterId) {
+  const after = Number(afterId) || 0;
+  const convo = dmKey(me, other);
+  const { rows } = await query(
+    `SELECT * FROM (
+       SELECT id, sender, recipient, channel, body, created_at
+       FROM messages
+       WHERE channel='dm' AND convo=$1 AND id > $2
+       ORDER BY id DESC
+       LIMIT 200
+     ) t ORDER BY id ASC`,
+    [convo, after]
+  );
+  return rows.map(rowToMessage);
+}
+
+/**
+ * Sidebar list for `me`: every other officer with their last DM (if any),
+ * sorted by most-recent activity then name.
+ */
+async function getConversations(me) {
+  const members = await query(
+    `SELECT username, rank, accent, badge FROM officers
+     WHERE LOWER(username) <> LOWER($1) ORDER BY username ASC`,
+    [me]
+  );
+  const last = await query(
+    `SELECT DISTINCT ON (convo) convo, sender, recipient, body, created_at
+     FROM messages
+     WHERE channel='dm' AND (LOWER(sender)=LOWER($1) OR LOWER(recipient)=LOWER($1))
+     ORDER BY convo, id DESC`,
+    [me]
+  );
+  const lastByConvo = {};
+  last.rows.forEach((r) => { lastByConvo[r.convo] = r; });
+
+  return members.rows.map((m) => {
+    const r = lastByConvo[dmKey(me, m.username)];
+    return {
+      username: m.username,
+      rank: m.rank || 'Recruit',
+      accent: m.accent || '#3fff9f',
+      badge: m.badge || '★',
+      lastBody: r ? r.body : null,
+      lastAt: r ? r.created_at : null,
+    };
+  }).sort((a, b) => {
+    if (a.lastAt && b.lastAt) return new Date(b.lastAt) - new Date(a.lastAt);
+    if (a.lastAt) return -1;
+    if (b.lastAt) return 1;
+    return a.username.localeCompare(b.username);
+  });
+}
+
 module.exports = {
   HASH_PASSWORDS,
   loadUsers, verifyUser, addUser, deleteUser, editUser,
@@ -335,4 +459,5 @@ module.exports = {
   getPoints, adjustPoints, resetPoints,
   getTasks, completeMission, addMission, deleteMission, editMission,
   getMembers, getMember, getLeaderboard, levelFromXP,
+  sendMessage, getGroupMessages, getDirectMessages, getConversations,
 };
