@@ -1,333 +1,42 @@
 /**
  * store.js — central data-access layer for Operation DHURANDAR.
  * --------------------------------------------------------------
- * All persistence lives in flat files inside /data:
- *   - auth.txt      -> credentials (username,password,rank), one per line
- *   - points.json   -> { username: points }
- *   - tasks.json    -> { missions: [...], completions: { username: [taskId] } }
- *   - members.json  -> profile metadata keyed by username
+ * Persistence now lives in a Neon (Postgres) database instead of flat files,
+ * so every write survives — including on Vercel's read-only filesystem, which
+ * is why "Add Officer", "Create Mission" and the Command Centre used to fail.
  *
- * No external database is required. Every mutation is written back to disk
- * synchronously so the leaderboard / profiles reflect changes instantly.
+ * Tables (created by scripts/init-db.js):
+ *   officers     -> credentials + full profile + points (one row per officer)
+ *   missions     -> the mission board
+ *   completions  -> which officer completed which mission (for XP de-dup)
  *
- * NOTE: Serverless platforms (e.g. Vercel) use a read-only filesystem, so
- * write operations are wrapped in try/catch -- the in-memory state still
- * updates for the session even if the disk write is rejected.
+ * Every public function is async and returns the SAME shapes the EJS views
+ * already expect, so the templates did not need to change.
  */
 
-const fs = require('fs');
-const path = require('path');
 const bcrypt = require('bcryptjs');
+const { query } = require('./db');
 
-const DATA_DIR = path.join(__dirname, '..', 'data');
-const AUTH_FILE = path.join(DATA_DIR, 'auth.txt');
-const POINTS_FILE = path.join(DATA_DIR, 'points.json');
-const TASKS_FILE = path.join(DATA_DIR, 'tasks.json');
-const MEMBERS_FILE = path.join(DATA_DIR, 'members.json');
-
-// Flip to "true" (env var) to store/verify passwords with bcrypt instead of plain text.
 const HASH_PASSWORDS = String(process.env.HASH_PASSWORDS).toLowerCase() === 'true';
 
-// Remove stray NUL bytes that some synced filesystems leave behind when a
-// shorter payload overwrites a longer one (keeps the JSON parser happy).
-const NUL = String.fromCharCode(0);
-function stripNul(s) {
-  return s.split(NUL).join('');
-}
+/* --------------------------- row -> view shapes ------------------------- */
 
-/* ----------------------------- low-level IO ----------------------------- */
-
-function readJSON(file, fallback) {
-  try {
-    let raw = stripNul(fs.readFileSync(file, 'utf8')).trim();
-    const last = Math.max(raw.lastIndexOf('}'), raw.lastIndexOf(']'));
-    if (last !== -1) raw = raw.slice(0, last + 1);
-    return JSON.parse(raw);
-  } catch (err) {
-    console.warn('[store] could not read ' + path.basename(file) + ' -- using fallback. ' + err.message);
-    return fallback;
-  }
-}
-
-function writeJSON(file, data) {
-  try {
-    fs.writeFileSync(file, JSON.stringify(data, null, 2), 'utf8');
-    return true;
-  } catch (err) {
-    console.warn('[store] write blocked for ' + path.basename(file) + ' (read-only FS?). ' + err.message);
-    return false;
-  }
-}
-
-/* ------------------------------- users ---------------------------------- */
-
-function loadUsers() {
-  let raw = '';
-  try {
-    raw = stripNul(fs.readFileSync(AUTH_FILE, 'utf8'));
-  } catch (err) {
-    console.error('[store] auth.txt missing -- no users loaded. ' + err.message);
-    return [];
-  }
-
-  return raw
-    .split(/\r?\n/)
-    .map(function (line) { return line.trim(); })
-    .filter(function (line) { return line && !line.startsWith('#'); })
-    .map(function (line) {
-      const parts = line.split(',');
-      const username = parts[0];
-      const password = parts[1];
-      const rank = parts.slice(2).join(',');
-      return {
-        username: (username || '').trim(),
-        password: (password || '').trim(),
-        rank: (rank || '').trim() || 'Recruit',
-      };
-    })
-    .filter(function (u) { return u.username && u.password; });
-}
-
-async function verifyUser(username, password) {
-  const user = loadUsers().find(function (u) {
-    return u.username.toLowerCase() === String(username || '').toLowerCase();
-  });
-  if (!user) return null;
-
-  let ok;
-  if (HASH_PASSWORDS && user.password.startsWith('$2')) {
-    ok = await bcrypt.compare(password, user.password);
-  } else {
-    ok = user.password === password;
-  }
-  return ok ? { username: user.username, rank: user.rank } : null;
-}
-
-async function addUser(opts) {
-  const username = String((opts && opts.username) || '').trim();
-  const password = opts && opts.password;
-  const rank = String((opts && opts.rank) || 'Recruit').trim();
-
-  if (!username || !password) {
-    return { ok: false, error: 'Name and password are required.' };
-  }
-  if (/[,\n\r]/.test(username) || /[,\n\r]/.test(rank)) {
-    return { ok: false, error: 'Name and rank cannot contain commas or line breaks.' };
-  }
-  if (loadUsers().some(function (u) { return u.username.toLowerCase() === username.toLowerCase(); })) {
-    return { ok: false, error: 'An officer with that name already exists.' };
-  }
-
-  const stored = HASH_PASSWORDS ? await bcrypt.hash(password, 10) : password;
-  try {
-    fs.appendFileSync(AUTH_FILE, '\n' + username + ',' + stored + ',' + rank, 'utf8');
-  } catch (err) {
-    return { ok: false, error: 'Could not write to auth.txt (read-only filesystem?).' };
-  }
-
-  const points = getPoints();
-  if (points[username] === undefined) {
-    points[username] = 0;
-    writeJSON(POINTS_FILE, points);
-  }
-
-  const members = getMembers();
-  if (!members[username]) {
-    members[username] = defaultProfile(username, rank);
-    writeJSON(MEMBERS_FILE, members);
-  }
-
-  const tasks = getTasks();
-  if (!tasks.completions[username]) {
-    tasks.completions[username] = [];
-    writeJSON(TASKS_FILE, tasks);
-  }
-
-  return { ok: true };
-}
-
-function deleteUser(username) {
-  const target = String(username || '').toLowerCase();
-
-  try {
-    const lines = stripNul(fs.readFileSync(AUTH_FILE, 'utf8')).split(/\r?\n/);
-    const kept = lines.filter(function (line) {
-      const trimmed = line.trim();
-      if (!trimmed || trimmed.startsWith('#')) return true;
-      return trimmed.split(',')[0].trim().toLowerCase() !== target;
-    });
-    fs.writeFileSync(AUTH_FILE, kept.join('\n'), 'utf8');
-  } catch (err) {
-    return { ok: false, error: 'Could not update auth.txt.' };
-  }
-
-  const points = getPoints();
-  Object.keys(points).forEach(function (key) { if (key.toLowerCase() === target) delete points[key]; });
-  writeJSON(POINTS_FILE, points);
-
-  const members = getMembers();
-  Object.keys(members).forEach(function (key) { if (key.toLowerCase() === target) delete members[key]; });
-  writeJSON(MEMBERS_FILE, members);
-
-  const tasks = getTasks();
-  Object.keys(tasks.completions).forEach(function (key) { if (key.toLowerCase() === target) delete tasks.completions[key]; });
-  writeJSON(TASKS_FILE, tasks);
-
-  return { ok: true };
-}
-
-function editUser(username, updates) {
-  updates = updates || {};
-  const target = String(username || '').toLowerCase();
-  let found = false;
-
-  try {
-    const lines = stripNul(fs.readFileSync(AUTH_FILE, 'utf8')).split(/\r?\n/);
-    const next = lines.map(function (line) {
-      const trimmed = line.trim();
-      if (!trimmed || trimmed.startsWith('#')) return line;
-      const parts = trimmed.split(',');
-      const u = parts[0];
-      const p = parts[1];
-      const r = parts.slice(2).join(',');
-      if (u.trim().toLowerCase() !== target) return line;
-      found = true;
-      const newPass = updates.password ? updates.password : p;
-      const newRank = updates.rank ? updates.rank : r.trim();
-      return u.trim() + ',' + newPass + ',' + newRank;
-    });
-    fs.writeFileSync(AUTH_FILE, next.join('\n'), 'utf8');
-  } catch (err) {
-    return { ok: false, error: 'Could not update auth.txt.' };
-  }
-
-  if (!found) return { ok: false, error: 'Officer not found.' };
-
-  const members = getMembers();
-  const key = Object.keys(members).find(function (k) { return k.toLowerCase() === target; });
-  if (key) {
-    const m = members[key];
-    if (updates.rank) m.rank = updates.rank;
-    if (updates.posting) m.posting = updates.posting;
-    if (updates.years !== undefined && updates.years !== '') m.years = Number(updates.years);
-    writeJSON(MEMBERS_FILE, members);
-  }
-
-  return { ok: true };
-}
-
-/* ------------------------------- points --------------------------------- */
-
-function getPoints() {
-  return readJSON(POINTS_FILE, {});
-}
-
-function setPoints(points) {
-  return writeJSON(POINTS_FILE, points);
-}
-
-function adjustPoints(username, delta) {
-  const points = getPoints();
-  const key = Object.keys(points).find(function (k) { return k.toLowerCase() === username.toLowerCase(); }) || username;
-  points[key] = Math.max(0, (points[key] || 0) + Number(delta || 0));
-  setPoints(points);
-  return points[key];
-}
-
-function resetPoints(username) {
-  const points = getPoints();
-  if (username) {
-    const key = Object.keys(points).find(function (k) { return k.toLowerCase() === username.toLowerCase(); });
-    if (key) points[key] = 0;
-  } else {
-    Object.keys(points).forEach(function (key) { points[key] = 0; });
-    const tasks = getTasks();
-    Object.keys(tasks.completions).forEach(function (key) { tasks.completions[key] = []; });
-    writeJSON(TASKS_FILE, tasks);
-  }
-  setPoints(points);
-  return points;
-}
-
-/* ------------------------------- missions ------------------------------- */
-
-function getTasks() {
-  const data = readJSON(TASKS_FILE, { missions: [], completions: {} });
-  if (!data.missions) data.missions = [];
-  if (!data.completions) data.completions = {};
-  return data;
-}
-
-function saveTasks(data) {
-  return writeJSON(TASKS_FILE, data);
-}
-
-function completeMission(username, taskId) {
-  const tasks = getTasks();
-  const mission = tasks.missions.find(function (m) { return m.id === taskId; });
-  if (!mission) return { ok: false, error: 'Mission not found.' };
-
-  if (!tasks.completions[username]) tasks.completions[username] = [];
-  if (tasks.completions[username].indexOf(taskId) !== -1) {
-    return { ok: false, error: 'Mission already completed -- no duplicate XP.' };
-  }
-
-  tasks.completions[username].push(taskId);
-  saveTasks(tasks);
-  adjustPoints(username, mission.xp);
-  return { ok: true, xp: mission.xp };
-}
-
-function addMission(opts) {
-  const title = opts && opts.title;
-  const xp = opts && opts.xp;
-  const category = opts && opts.category;
-  if (!title || xp === undefined) return { ok: false, error: 'Title and XP are required.' };
-  const tasks = getTasks();
-  const id = 'm' + Date.now().toString(36);
-  tasks.missions.push({
-    id: id,
-    title: String(title).trim(),
-    xp: Math.max(0, Number(xp) || 0),
-    category: (category || 'General').trim(),
-  });
-  saveTasks(tasks);
-  return { ok: true, id: id };
-}
-
-function deleteMission(taskId) {
-  const tasks = getTasks();
-  const before = tasks.missions.length;
-  tasks.missions = tasks.missions.filter(function (m) { return m.id !== taskId; });
-  Object.keys(tasks.completions).forEach(function (key) {
-    tasks.completions[key] = tasks.completions[key].filter(function (id) { return id !== taskId; });
-  });
-  saveTasks(tasks);
-  return { ok: tasks.missions.length < before };
-}
-
-function editMission(taskId, updates) {
-  updates = updates || {};
-  const tasks = getTasks();
-  const mission = tasks.missions.find(function (m) { return m.id === taskId; });
-  if (!mission) return { ok: false, error: 'Mission not found.' };
-  if (updates.title) mission.title = String(updates.title).trim();
-  if (updates.xp !== undefined && updates.xp !== '') mission.xp = Math.max(0, Number(updates.xp));
-  if (updates.category) mission.category = String(updates.category).trim();
-  saveTasks(tasks);
-  return { ok: true };
-}
-
-/* ------------------------------- members -------------------------------- */
-
-function getMembers() {
-  return readJSON(MEMBERS_FILE, {});
-}
-
-function getMember(username) {
-  const members = getMembers();
-  const key = Object.keys(members).find(function (k) { return k.toLowerCase() === String(username).toLowerCase(); });
-  return key ? Object.assign({ username: key }, members[key]) : null;
+function rowToProfile(row) {
+  return {
+    callsign: row.callsign || (row.username || '').toUpperCase(),
+    rank: row.rank || 'Recruit',
+    posting: row.posting || 'Awaiting Assignment',
+    years: row.years == null ? 1 : Number(row.years),
+    clearance: row.clearance || 'CHARLIE — CONFIDENTIAL',
+    status: row.status || 'ACTIVE — RESERVE',
+    achievements: Array.isArray(row.achievements) ? row.achievements : [],
+    contribution: Array.isArray(row.contribution) ? row.contribution : [],
+    currentMission: row.current_mission || 'Operation DHURANDAR — Orientation',
+    sector: row.sector || { x: 50, y: 50 },
+    geo: row.geo || null,
+    badge: row.badge || '★',
+    accent: row.accent || '#3fff9f',
+  };
 }
 
 function defaultProfile(username, rank) {
@@ -344,57 +53,286 @@ function defaultProfile(username, rank) {
     contribution: ['Pending First Assignment'],
     currentMission: 'Operation DHURANDAR — Orientation',
     sector: { x: 40 + Math.round(Math.random() * 20), y: 40 + Math.round(Math.random() * 20) },
+    geo: null,
     badge: badgeByRank[rank] || '★',
     accent: accents[Math.floor(Math.random() * accents.length)],
   };
 }
 
-/* -------------------------- composite views ----------------------------- */
+/* ------------------------------- users ---------------------------------- */
 
-function getLeaderboard() {
-  const points = getPoints();
-  const members = getMembers();
-  const users = loadUsers();
-
-  const rows = users.map(function (u) {
-    const xp = points[u.username] || 0;
-    const profile = members[u.username] || {};
-    return {
-      username: u.username,
-      militaryRank: profile.rank || u.rank,
-      points: xp,
-      level: levelFromXP(xp),
-      accent: profile.accent || '#3fff9f',
-    };
-  });
-
-  rows.sort(function (a, b) { return b.points - a.points; });
-  rows.forEach(function (r, i) { r.position = i + 1; });
-  return rows;
+async function loadUsers() {
+  const { rows } = await query(
+    'SELECT username, password, rank FROM officers ORDER BY created_at ASC, username ASC'
+  );
+  return rows.map((r) => ({ username: r.username, password: r.password, rank: r.rank || 'Recruit' }));
 }
+
+async function verifyUser(username, password) {
+  const { rows } = await query(
+    'SELECT username, password, rank FROM officers WHERE LOWER(username) = LOWER($1) LIMIT 1',
+    [String(username || '')]
+  );
+  const user = rows[0];
+  if (!user) return null;
+  let ok;
+  if (HASH_PASSWORDS && user.password.startsWith('$2')) {
+    ok = await bcrypt.compare(password, user.password);
+  } else {
+    ok = user.password === password;
+  }
+  return ok ? { username: user.username, rank: user.rank } : null;
+}
+
+async function addUser(opts) {
+  const username = String((opts && opts.username) || '').trim();
+  const password = opts && opts.password;
+  const rank = String((opts && opts.rank) || 'Recruit').trim();
+  if (!username || !password) return { ok: false, error: 'Name and password are required.' };
+
+  const exists = await query('SELECT 1 FROM officers WHERE LOWER(username) = LOWER($1) LIMIT 1', [username]);
+  if (exists.rowCount > 0) return { ok: false, error: 'An officer with that name already exists.' };
+
+  const stored = HASH_PASSWORDS ? await bcrypt.hash(password, 10) : password;
+  const p = defaultProfile(username, rank);
+  try {
+    await query(
+      'INSERT INTO officers (username, password, rank, points, callsign, posting, years, clearance, status, achievements, contribution, current_mission, sector, geo, badge, accent) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)',
+      [username, stored, rank, 0, p.callsign, p.posting, p.years, p.clearance, p.status,
+        JSON.stringify(p.achievements), JSON.stringify(p.contribution), p.currentMission,
+        JSON.stringify(p.sector), p.geo ? JSON.stringify(p.geo) : null, p.badge, p.accent]
+    );
+  } catch (err) {
+    console.error('[store] addUser failed:', err.message);
+    return { ok: false, error: 'Database error while commissioning officer.' };
+  }
+  return { ok: true };
+}
+
+async function deleteUser(username) {
+  try {
+    await query('DELETE FROM completions WHERE LOWER(username) = LOWER($1)', [username]);
+    const res = await query('DELETE FROM officers WHERE LOWER(username) = LOWER($1)', [username]);
+    return { ok: res.rowCount > 0, error: res.rowCount > 0 ? undefined : 'Officer not found.' };
+  } catch (err) {
+    console.error('[store] deleteUser failed:', err.message);
+    return { ok: false, error: 'Database error while decommissioning officer.' };
+  }
+}
+
+async function editUser(username, updates) {
+  updates = updates || {};
+  const sets = [];
+  const vals = [];
+  let i = 1;
+  if (updates.password) { sets.push('password = $' + i++); vals.push(HASH_PASSWORDS ? await bcrypt.hash(updates.password, 10) : updates.password); }
+  if (updates.rank) { sets.push('rank = $' + i++); vals.push(String(updates.rank).trim()); }
+  if (updates.posting !== undefined && updates.posting !== '') { sets.push('posting = $' + i++); vals.push(String(updates.posting).trim()); }
+  if (updates.years !== undefined && updates.years !== '') { sets.push('years = $' + i++); vals.push(Number(updates.years)); }
+  if (sets.length === 0) return { ok: true };
+  vals.push(username);
+  try {
+    const res = await query('UPDATE officers SET ' + sets.join(', ') + ' WHERE LOWER(username) = LOWER($' + i + ')', vals);
+    return { ok: res.rowCount > 0, error: res.rowCount > 0 ? undefined : 'Officer not found.' };
+  } catch (err) {
+    console.error('[store] editUser failed:', err.message);
+    return { ok: false, error: 'Database error while updating record.' };
+  }
+}
+
+async function updateProfile(username, fields) {
+  fields = fields || {};
+  const map = { posting: 'posting', callsign: 'callsign', status: 'status', clearance: 'clearance', currentMission: 'current_mission', badge: 'badge', accent: 'accent' };
+  const sets = [];
+  const vals = [];
+  let i = 1;
+  Object.keys(map).forEach((key) => {
+    if (fields[key] !== undefined && fields[key] !== '') { sets.push(map[key] + ' = $' + i++); vals.push(String(fields[key]).trim()); }
+  });
+  if (fields.years !== undefined && fields.years !== '') { sets.push('years = $' + i++); vals.push(Number(fields.years)); }
+  if (fields.rank) { sets.push('rank = $' + i++); vals.push(String(fields.rank).trim()); }
+  if (sets.length === 0) return { ok: false, error: 'Nothing to update.' };
+  vals.push(username);
+  try {
+    const res = await query('UPDATE officers SET ' + sets.join(', ') + ' WHERE LOWER(username) = LOWER($' + i + ')', vals);
+    return { ok: res.rowCount > 0, error: res.rowCount > 0 ? undefined : 'Officer not found.' };
+  } catch (err) {
+    console.error('[store] updateProfile failed:', err.message);
+    return { ok: false, error: 'Database error while updating profile.' };
+  }
+}
+
+async function updatePosting(username, posting) {
+  if (!posting || !String(posting).trim()) return { ok: false, error: 'Posting cannot be empty.' };
+  return updateProfile(username, { posting });
+}
+
+/* --------------------------- achievements ------------------------------- */
+
+async function getAchievements(username) {
+  const { rows } = await query('SELECT achievements FROM officers WHERE LOWER(username) = LOWER($1) LIMIT 1', [username]);
+  if (!rows[0]) return null;
+  return Array.isArray(rows[0].achievements) ? rows[0].achievements : [];
+}
+
+async function addAchievement(username, text) {
+  const value = String(text || '').trim();
+  if (!value) return { ok: false, error: 'Achievement text is required.' };
+  const current = await getAchievements(username);
+  if (current === null) return { ok: false, error: 'Officer not found.' };
+  const next = current.concat([value]);
+  try {
+    await query('UPDATE officers SET achievements = $1 WHERE LOWER(username) = LOWER($2)', [JSON.stringify(next), username]);
+    return { ok: true };
+  } catch (err) {
+    console.error('[store] addAchievement failed:', err.message);
+    return { ok: false, error: 'Database error while adding achievement.' };
+  }
+}
+
+async function removeAchievement(username, index) {
+  const current = await getAchievements(username);
+  if (current === null) return { ok: false, error: 'Officer not found.' };
+  const idx = Number(index);
+  if (Number.isNaN(idx) || idx < 0 || idx >= current.length) return { ok: false, error: 'Invalid achievement index.' };
+  const next = current.slice(0, idx).concat(current.slice(idx + 1));
+  try {
+    await query('UPDATE officers SET achievements = $1 WHERE LOWER(username) = LOWER($2)', [JSON.stringify(next), username]);
+    return { ok: true };
+  } catch (err) {
+    console.error('[store] removeAchievement failed:', err.message);
+    return { ok: false, error: 'Database error while removing achievement.' };
+  }
+}
+
+/* ------------------------------- points --------------------------------- */
+
+async function getPoints() {
+  const { rows } = await query('SELECT username, points FROM officers');
+  const out = {};
+  rows.forEach((r) => { out[r.username] = Number(r.points) || 0; });
+  return out;
+}
+
+async function adjustPoints(username, delta) {
+  const { rows } = await query(
+    'UPDATE officers SET points = GREATEST(0, points + $1) WHERE LOWER(username) = LOWER($2) RETURNING points',
+    [Number(delta || 0), username]
+  );
+  return rows[0] ? Number(rows[0].points) : 0;
+}
+
+async function resetPoints(username) {
+  if (username) {
+    await query('UPDATE officers SET points = 0 WHERE LOWER(username) = LOWER($1)', [username]);
+  } else {
+    await query('UPDATE officers SET points = 0');
+    await query('DELETE FROM completions');
+  }
+  return getPoints();
+}
+
+/* ------------------------------- missions ------------------------------- */
+
+async function getTasks() {
+  const missionsRes = await query('SELECT id, title, xp, category FROM missions ORDER BY created_at ASC, id ASC');
+  const compRes = await query('SELECT username, task_id FROM completions');
+  const completions = {};
+  const officers = await query('SELECT username FROM officers');
+  officers.rows.forEach((o) => { completions[o.username] = []; });
+  compRes.rows.forEach((c) => {
+    if (!completions[c.username]) completions[c.username] = [];
+    completions[c.username].push(c.task_id);
+  });
+  return {
+    missions: missionsRes.rows.map((m) => ({ id: m.id, title: m.title, xp: Number(m.xp), category: m.category })),
+    completions,
+  };
+}
+
+async function completeMission(username, taskId) {
+  const mres = await query('SELECT id, xp FROM missions WHERE id = $1 LIMIT 1', [taskId]);
+  const mission = mres.rows[0];
+  if (!mission) return { ok: false, error: 'Mission not found.' };
+  const dup = await query('SELECT 1 FROM completions WHERE LOWER(username) = LOWER($1) AND task_id = $2 LIMIT 1', [username, taskId]);
+  if (dup.rowCount > 0) return { ok: false, error: 'Mission already completed -- no duplicate XP.' };
+  await query('INSERT INTO completions (username, task_id) VALUES ($1, $2)', [username, taskId]);
+  await adjustPoints(username, Number(mission.xp));
+  return { ok: true, xp: Number(mission.xp) };
+}
+
+async function addMission(opts) {
+  const title = opts && opts.title;
+  const xp = opts && opts.xp;
+  const category = opts && opts.category;
+  if (!title || xp === undefined) return { ok: false, error: 'Title and XP are required.' };
+  const id = 'm' + Date.now().toString(36);
+  try {
+    await query('INSERT INTO missions (id, title, xp, category) VALUES ($1,$2,$3,$4)', [id, String(title).trim(), Math.max(0, Number(xp) || 0), (category || 'General').trim()]);
+    return { ok: true, id };
+  } catch (err) {
+    console.error('[store] addMission failed:', err.message);
+    return { ok: false, error: 'Database error while creating mission.' };
+  }
+}
+
+async function deleteMission(taskId) {
+  await query('DELETE FROM completions WHERE task_id = $1', [taskId]);
+  const res = await query('DELETE FROM missions WHERE id = $1', [taskId]);
+  return { ok: res.rowCount > 0 };
+}
+
+async function editMission(taskId, updates) {
+  updates = updates || {};
+  const sets = [];
+  const vals = [];
+  let i = 1;
+  if (updates.title) { sets.push('title = $' + i++); vals.push(String(updates.title).trim()); }
+  if (updates.xp !== undefined && updates.xp !== '') { sets.push('xp = $' + i++); vals.push(Math.max(0, Number(updates.xp))); }
+  if (updates.category) { sets.push('category = $' + i++); vals.push(String(updates.category).trim()); }
+  if (sets.length === 0) return { ok: true };
+  vals.push(taskId);
+  const res = await query('UPDATE missions SET ' + sets.join(', ') + ' WHERE id = $' + i, vals);
+  return { ok: res.rowCount > 0, error: res.rowCount > 0 ? undefined : 'Mission not found.' };
+}
+
+/* ------------------------------- members -------------------------------- */
+
+async function getMembers() {
+  const { rows } = await query('SELECT * FROM officers ORDER BY created_at ASC, username ASC');
+  const out = {};
+  rows.forEach((r) => { out[r.username] = rowToProfile(r); });
+  return out;
+}
+
+async function getMember(username) {
+  const { rows } = await query('SELECT * FROM officers WHERE LOWER(username) = LOWER($1) LIMIT 1', [String(username)]);
+  if (!rows[0]) return null;
+  return Object.assign({ username: rows[0].username }, rowToProfile(rows[0]));
+}
+
+/* -------------------------- composite views ----------------------------- */
 
 function levelFromXP(xp) {
   return Math.max(1, Math.floor(xp / 100) + 1);
 }
 
+async function getLeaderboard() {
+  const { rows } = await query('SELECT username, rank, points, accent FROM officers');
+  const out = rows.map((r) => {
+    const xp = Number(r.points) || 0;
+    return { username: r.username, militaryRank: r.rank || 'Recruit', points: xp, level: levelFromXP(xp), accent: r.accent || '#3fff9f' };
+  });
+  out.sort((a, b) => b.points - a.points);
+  out.forEach((r, idx) => { r.position = idx + 1; });
+  return out;
+}
+
 module.exports = {
-  HASH_PASSWORDS: HASH_PASSWORDS,
-  loadUsers: loadUsers,
-  verifyUser: verifyUser,
-  addUser: addUser,
-  deleteUser: deleteUser,
-  editUser: editUser,
-  getPoints: getPoints,
-  setPoints: setPoints,
-  adjustPoints: adjustPoints,
-  resetPoints: resetPoints,
-  getTasks: getTasks,
-  completeMission: completeMission,
-  addMission: addMission,
-  deleteMission: deleteMission,
-  editMission: editMission,
-  getMembers: getMembers,
-  getMember: getMember,
-  getLeaderboard: getLeaderboard,
-  levelFromXP: levelFromXP,
+  HASH_PASSWORDS,
+  loadUsers, verifyUser, addUser, deleteUser, editUser,
+  updateProfile, updatePosting, getAchievements, addAchievement, removeAchievement,
+  getPoints, adjustPoints, resetPoints,
+  getTasks, completeMission, addMission, deleteMission, editMission,
+  getMembers, getMember, getLeaderboard, levelFromXP,
 };

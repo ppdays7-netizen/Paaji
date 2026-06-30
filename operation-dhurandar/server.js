@@ -6,12 +6,17 @@
  * any real armed force or government. All names, ranks, "missions", and
  * locations are invented for a college demonstration.
  *
- * Stack: Node.js + Express + EJS + session auth + flat-file storage.
+ * Stack: Node.js + Express + EJS + session auth + Neon (Postgres) storage.
  */
+
+// Load .env (DATABASE_URL, SESSION_SECRET, ...) for local development.
+require('dotenv').config();
 
 const path = require('path');
 const express = require('express');
 const session = require('express-session');
+const pgSession = require('connect-pg-simple')(session);
+const { pool } = require('./server/db');
 
 const { attachUser } = require('./middleware/auth');
 const authRoutes = require('./routes/auth');
@@ -31,16 +36,25 @@ app.use(express.static(path.join(__dirname, 'public')));
 app.use(express.urlencoded({ extended: true }));
 app.use(express.json());
 
+// Sessions are stored in Postgres (the "session" table) instead of in memory,
+// so logins survive across Vercel's stateless serverless invocations.
+app.set('trust proxy', 1); // required so secure cookies work behind Vercel's proxy
 app.use(
   session({
     name: 'dhurandar.sid',
+    store: new pgSession({
+      pool,
+      tableName: 'session',
+      createTableIfMissing: true,
+    }),
     secret: process.env.SESSION_SECRET || 'dhurandar-classified-demo-secret',
     resave: false,
     saveUninitialized: false,
     cookie: {
       httpOnly: true,
-      maxAge: 1000 * 60 * 30, // 30-minute session timeout
+      maxAge: 1000 * 60 * 60 * 8, // 8-hour session
       sameSite: 'lax',
+      secure: process.env.NODE_ENV === 'production',
     },
   })
 );
@@ -73,8 +87,8 @@ app.use((err, req, res, next) => {
 // Export the app for serverless platforms (Vercel); listen locally.
 if (require.main === module) {
   app.listen(PORT, () => {
-    console.log(`\n  ██ OPERATION DHURANDAR ██  secure portal online`);
-    console.log(`  → http://localhost:${PORT}\n`);
+    console.log('\n  OPERATION DHURANDAR  secure portal online');
+    console.log('  -> http://localhost:' + PORT + '\n');
   });
 }
 

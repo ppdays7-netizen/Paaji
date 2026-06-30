@@ -14,6 +14,12 @@ router.post('/members/add', admin.addMember);
 router.post('/members/edit', admin.editMember);
 router.post('/members/delete', admin.deleteMember);
 
+// Advanced dossier — full profile, posting, achievements
+router.post('/members/profile', admin.updateProfile);
+router.post('/members/posting', admin.updatePosting);
+router.post('/members/achievements/add', admin.addAchievement);
+router.post('/members/achievements/remove', admin.removeAchievement);
+
 // Points
 router.post('/points/adjust', admin.adjustPoints);
 router.post('/points/reset', admin.resetPoints);
