@@ -35,14 +35,25 @@ exports.dmFeed = wrap(async (req, res) => {
   res.json({ ok: true, messages, with: member.username });
 });
 
-/** Send a message. Body: { body, to? } — `to` present => DM, else group. */
+/** Send a message. Body: { body, to?, attachment?: { name, type, size, data } } */
 exports.send = wrap(async (req, res) => {
   const me = req.session.user.username;
-  const { body, to } = req.body || {};
-  const opts = to ? { recipient: to } : {};
-  const result = await store.sendMessage(me, body, opts);
+  const { body, to, attachment } = req.body || {};
+  const opts = { ...(to ? { recipient: to } : {}), ...(attachment ? { attachment } : {}) };
+  const result = await store.sendMessage(me, body || '', opts);
   if (!result.ok) return res.status(400).json(result);
   res.json({ ok: true, message: result.message });
+});
+
+/** Serve an attachment. GET /api/file/:id — streams the base64 as the original binary. */
+exports.getFile = wrap(async (req, res) => {
+  const att = await store.getMessageAttachment(req.params.id);
+  if (!att) return res.status(404).json({ ok: false, error: 'Attachment not found.' });
+  const buf = Buffer.from(att.data, 'base64');
+  res.setHeader('Content-Type', att.type || 'application/octet-stream');
+  res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(att.name)}"`);
+  res.setHeader('Content-Length', buf.length);
+  res.send(buf);
 });
 
 /** Sidebar conversation list (for live refresh of last-message previews). */

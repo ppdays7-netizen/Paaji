@@ -61,7 +61,23 @@
           <div class="text-center text-emerald-400/40 font-mono text-xs py-8">Establishing secure link…</div>
         </div>
 
+        <!-- file preview strip (hidden until a file is picked) -->
+        <div id="file-preview" class="hidden items-center gap-2 px-4 pt-2 border-t border-mil-green/15">
+          <i data-lucide="paperclip" class="w-3.5 h-3.5 text-mil-green flex-shrink-0"></i>
+          <span id="file-name" class="text-[11px] font-mono text-emerald-300 truncate flex-1"></span>
+          <button type="button" id="file-clear" class="text-emerald-400/60 hover:text-red-400 transition-colors">
+            <i data-lucide="x" class="w-3.5 h-3.5"></i>
+          </button>
+        </div>
+
         <form id="send-form" class="flex items-center gap-2 px-4 py-3 border-t border-mil-green/15">
+          <!-- hidden file input -->
+          <input id="file-input" type="file" accept="*/*" class="hidden" />
+          <!-- attach button -->
+          <button type="button" id="attach-btn" title="Attach file (max 5 MB)"
+                  class="flex-shrink-0 p-1.5 rounded border border-mil-green/25 text-emerald-400/60 hover:text-mil-green hover:border-mil-green/60 transition-colors">
+            <i data-lucide="paperclip" class="w-4 h-4"></i>
+          </button>
           <input id="msg-input" type="text" autocomplete="off" maxlength="2000"
                  class="flex-1 bg-mil-bg/60 border border-mil-green/25 rounded px-3 py-2 text-sm text-emerald-100 font-mono outline-none focus:border-mil-green/60 placeholder:text-emerald-400/30"
                  placeholder="Type a transmission…" />
@@ -84,10 +100,50 @@
   var seen = {};            // id -> true, to avoid duplicate renders
   var pollTimer = null;
 
+  // Attachment state
+  var pendingFile = null;   // { name, type, size, data } or null
+
   var feed = document.getElementById('message-feed');
   var form = document.getElementById('send-form');
   var input = document.getElementById('msg-input');
   var statusEl = document.getElementById('comms-status');
+  var fileInput = document.getElementById('file-input');
+  var attachBtn = document.getElementById('attach-btn');
+  var filePreview = document.getElementById('file-preview');
+  var fileName = document.getElementById('file-name');
+  var fileClear = document.getElementById('file-clear');
+
+  // --- file attachment wiring ---
+  attachBtn.addEventListener('click', function () { fileInput.click(); });
+
+  fileInput.addEventListener('change', function () {
+    var file = fileInput.files[0];
+    if (!file) return;
+    if (file.size > 5 * 1024 * 1024) {
+      alert('File too large. Maximum size is 5 MB.');
+      fileInput.value = '';
+      return;
+    }
+    var reader = new FileReader();
+    reader.onload = function (e) {
+      // e.target.result is a data URL like "data:image/png;base64,AAA..."
+      var dataUrl = e.target.result;
+      var base64 = dataUrl.split(',')[1];
+      pendingFile = { name: file.name, type: file.type || 'application/octet-stream', size: file.size, data: base64 };
+      fileName.textContent = file.name + ' (' + (file.size < 1024 ? file.size + ' B' : file.size < 1048576 ? Math.round(file.size / 1024) + ' KB' : (file.size / 1048576).toFixed(1) + ' MB') + ')';
+      filePreview.classList.remove('hidden');
+      filePreview.classList.add('flex');
+      if (window.lucide) lucide.createIcons();
+    };
+    reader.readAsDataURL(file);
+    fileInput.value = '';
+  });
+
+  fileClear.addEventListener('click', function () {
+    pendingFile = null;
+    filePreview.classList.add('hidden');
+    filePreview.classList.remove('flex');
+  });
 
   function esc(s) {
     return String(s).replace(/[&<>"']/g, function (c) {
@@ -98,12 +154,38 @@
     var d = new Date(iso);
     return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   }
+  function fmtSize(bytes) {
+    if (!bytes) return '';
+    if (bytes < 1024) return bytes + ' B';
+    if (bytes < 1048576) return Math.round(bytes / 1024) + ' KB';
+    return (bytes / 1048576).toFixed(1) + ' MB';
+  }
 
   function endpoint(after) {
     var a = '?after=' + (after || 0);
     return current.type === 'group'
       ? '/chat/api/group' + a
       : '/chat/api/dm/' + encodeURIComponent(current.user) + a;
+  }
+
+  function renderAttachment(att, msgId) {
+    if (!att) return '';
+    var isImage = att.type && att.type.startsWith('image/');
+    var url = '/chat/api/file/' + msgId;
+    if (isImage) {
+      return '<div class="mt-2">' +
+        '<a href="' + url + '" target="_blank" download="' + esc(att.name) + '">' +
+          '<img src="' + url + '" alt="' + esc(att.name) + '" class="max-w-full max-h-48 rounded border border-mil-green/20 object-contain" />' +
+        '</a>' +
+        '<div class="text-[9px] font-mono text-emerald-400/40 mt-0.5">' + esc(att.name) + (att.size ? ' · ' + fmtSize(att.size) : '') + '</div>' +
+      '</div>';
+    }
+    // Generic file download chip
+    return '<a href="' + url + '" download="' + esc(att.name) + '" class="mt-2 flex items-center gap-2 px-2.5 py-1.5 rounded border border-mil-green/30 bg-mil-green/5 hover:bg-mil-green/10 transition-colors no-underline">' +
+      '<svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5 text-mil-green flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>' +
+      '<span class="text-[11px] font-mono text-emerald-200 truncate max-w-[160px]">' + esc(att.name) + '</span>' +
+      '<span class="text-[9px] font-mono text-emerald-400/40 ml-auto flex-shrink-0">' + (att.size ? fmtSize(att.size) : 'FILE') + '</span>' +
+    '</a>';
   }
 
   function renderMessage(m) {
@@ -125,8 +207,10 @@
     if (!mine) {
       head = '<div class="text-[11px] font-mono font-bold text-mil-green mb-0.5">' + esc(m.sender) + '</div>';
     }
-    bubble.innerHTML = head +
-      '<div class="text-sm text-emerald-100 break-words whitespace-pre-wrap">' + esc(m.body) + '</div>' +
+    var bodyHtml = m.body
+      ? '<div class="text-sm text-emerald-100 break-words whitespace-pre-wrap">' + esc(m.body) + '</div>'
+      : '';
+    bubble.innerHTML = head + bodyHtml + renderAttachment(m.attachment, m.id) +
       '<div class="text-[9px] font-mono text-emerald-400/40 mt-1 text-right">' + timeStr(m.createdAt) + '</div>';
 
     wrap.appendChild(bubble);
@@ -199,11 +283,21 @@
   form.addEventListener('submit', function (e) {
     e.preventDefault();
     var body = input.value.trim();
-    if (!body) return;
+    if (!body && !pendingFile) return;
+
     var payload = { body: body };
     if (current.type === 'dm') payload.to = current.user;
+    if (pendingFile) payload.attachment = pendingFile;
+
+    // Optimistically clear UI
     input.value = '';
     input.focus();
+    if (pendingFile) {
+      pendingFile = null;
+      filePreview.classList.add('hidden');
+      filePreview.classList.remove('flex');
+    }
+
     fetch('/chat/api/send', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },

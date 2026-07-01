@@ -108,10 +108,13 @@ async function createTables() {
       recipient  TEXT,
       channel    TEXT NOT NULL DEFAULT 'group',
       convo      TEXT NOT NULL DEFAULT 'group',
-      body       TEXT NOT NULL,
+      body       TEXT NOT NULL DEFAULT '',
+      attachment JSONB,
       created_at TIMESTAMPTZ NOT NULL DEFAULT now()
     );
   `);
+  // Migration safety: add attachment column to any existing messages table.
+  await query(`ALTER TABLE messages ADD COLUMN IF NOT EXISTS attachment JSONB;`);
   await query(`CREATE INDEX IF NOT EXISTS "IDX_messages_group" ON messages (channel, id);`);
   await query(`CREATE INDEX IF NOT EXISTS "IDX_messages_convo" ON messages (convo, id);`);
 

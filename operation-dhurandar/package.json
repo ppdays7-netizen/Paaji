@@ -8,7 +8,8 @@
     "dev": "nodemon server.js",
     "db:init": "node scripts/init-db.js",
     "db:fresh": "node scripts/init-db.js --fresh",
-    "db:chat": "node scripts/migrate-chat.js"
+    "db:chat": "node scripts/migrate-chat.js",
+    "db:attachments": "node scripts/migrate-attachments.js"
   },
   "keywords": ["fictional", "military", "dashboard", "express", "ejs", "demo"],
   "author": "Piyush",

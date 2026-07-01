@@ -341,11 +341,28 @@ function dmKey(a, b) {
   return x < y ? x + '|' + y : y + '|' + x;
 }
 
-/** Persist a message. type: 'group' or 'dm'. */
+// Max attachment size: 5 MB (measured against the base64 string length ≈ 6.7 MB stored).
+const MAX_ATTACHMENT_BYTES = 5 * 1024 * 1024;
+
+/** Persist a message. opts: { recipient?, attachment?: { name, type, data } } */
 async function sendMessage(sender, body, opts) {
   const text = String(body || '').trim();
-  if (!text) return { ok: false, error: 'Message cannot be empty.' };
+  const attachment = (opts && opts.attachment) || null;
+
+  // Must have text OR attachment.
+  if (!text && !attachment) return { ok: false, error: 'Message cannot be empty.' };
   if (text.length > 2000) return { ok: false, error: 'Message too long (2000 char max).' };
+
+  // Validate attachment.
+  if (attachment) {
+    if (!attachment.name || !attachment.type || !attachment.data) {
+      return { ok: false, error: 'Malformed attachment.' };
+    }
+    const byteLen = Math.round((attachment.data.length * 3) / 4);
+    if (byteLen > MAX_ATTACHMENT_BYTES) {
+      return { ok: false, error: 'Attachment too large (5 MB max).' };
+    }
+  }
 
   const channel = opts && opts.recipient ? 'dm' : 'group';
   const recipient = channel === 'dm' ? String(opts.recipient).trim() : null;
@@ -356,12 +373,19 @@ async function sendMessage(sender, body, opts) {
     if (exists.rowCount === 0) return { ok: false, error: 'Recipient not found.' };
   }
 
+  // Build attachment JSONB: store name/type/size as metadata + data separately inside same object.
+  const attachJson = attachment
+    ? JSON.stringify({ name: attachment.name, type: attachment.type, size: attachment.size || 0, data: attachment.data })
+    : null;
+
   try {
     const { rows } = await query(
-      `INSERT INTO messages (sender, recipient, channel, convo, body)
-       VALUES ($1,$2,$3,$4,$5)
-       RETURNING id, sender, recipient, channel, convo, body, created_at`,
-      [sender, recipient, channel, convo, text]
+      `INSERT INTO messages (sender, recipient, channel, convo, body, attachment)
+       VALUES ($1,$2,$3,$4,$5,$6)
+       RETURNING id, sender, recipient, channel, convo, body,
+                 attachment - 'data' AS attachment_meta,
+                 created_at`,
+      [sender, recipient, channel, convo, text, attachJson]
     );
     return { ok: true, message: rowToMessage(rows[0]) };
   } catch (err) {
@@ -377,8 +401,22 @@ function rowToMessage(r) {
     recipient: r.recipient,
     channel: r.channel,
     body: r.body,
+    // attachment_meta contains name/type/size but NOT data (stripped at query time).
+    attachment: r.attachment_meta || (r.attachment ? { name: r.attachment.name, type: r.attachment.type, size: r.attachment.size } : null),
     createdAt: r.created_at,
   };
+}
+
+/** Fetch the raw attachment data for a single message (for download/inline display). */
+async function getMessageAttachment(messageId) {
+  const { rows } = await query(
+    `SELECT id, sender, attachment->>'name' AS name, attachment->>'type' AS type,
+            attachment->>'data' AS data
+     FROM messages WHERE id = $1 LIMIT 1`,
+    [Number(messageId)]
+  );
+  if (!rows[0] || !rows[0].data) return null;
+  return { id: Number(rows[0].id), sender: rows[0].sender, name: rows[0].name, type: rows[0].type, data: rows[0].data };
 }
 
 /** Latest group messages, oldest-first. Pass afterId to fetch only newer ones. */
@@ -386,7 +424,9 @@ async function getGroupMessages(afterId) {
   const after = Number(afterId) || 0;
   const { rows } = await query(
     `SELECT * FROM (
-       SELECT id, sender, recipient, channel, body, created_at
+       SELECT id, sender, recipient, channel, body,
+              attachment - 'data' AS attachment_meta,
+              created_at
        FROM messages
        WHERE channel='group' AND id > $1
        ORDER BY id DESC
@@ -403,7 +443,9 @@ async function getDirectMessages(me, other, afterId) {
   const convo = dmKey(me, other);
   const { rows } = await query(
     `SELECT * FROM (
-       SELECT id, sender, recipient, channel, body, created_at
+       SELECT id, sender, recipient, channel, body,
+              attachment - 'data' AS attachment_meta,
+              created_at
        FROM messages
        WHERE channel='dm' AND convo=$1 AND id > $2
        ORDER BY id DESC
@@ -459,5 +501,5 @@ module.exports = {
   getPoints, adjustPoints, resetPoints,
   getTasks, completeMission, addMission, deleteMission, editMission,
   getMembers, getMember, getLeaderboard, levelFromXP,
-  sendMessage, getGroupMessages, getDirectMessages, getConversations,
+  sendMessage, getGroupMessages, getDirectMessages, getConversations, getMessageAttachment,
 };

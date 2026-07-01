@@ -12,5 +12,6 @@ router.get('/api/group', ensureAuth, chat.groupFeed);
 router.get('/api/conversations', ensureAuth, chat.conversations);
 router.get('/api/dm/:username', ensureAuth, chat.dmFeed);
 router.post('/api/send', ensureAuth, chat.send);
+router.get('/api/file/:id', ensureAuth, chat.getFile);
 
 module.exports = router;
